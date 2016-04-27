@@ -19,7 +19,7 @@ su -l root
 # обновление сервера
 apt-get update && apt-get upgrade
 
-# установка необходимых компонентво
+# установка необходимых компонентов
 apt-get install -y less libpcre3 subversion
 
 # загрузка htan
