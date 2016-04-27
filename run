@@ -431,7 +431,7 @@ if [[ -n "$HTAN_INSTALLED" ]]; then
   ServerInfo "--------------------------------------------\n\n"
 fi
 
-ServerInfo "\n\nDomain registration:\nhttp://www.reg.ru/?rid=76963"
+ServerInfo "Domain registration:\nhttp://www.reg.ru/?rid=76963"
 ServerInfo "\nVDS hosting:\nhttps://en.ihor.ru/vds?from=112887"
 ServerInfo "\n\n-- \nCreated by HTAN v$HTAN_VERSION, $(date +'%d.%m.%Y')"
 
