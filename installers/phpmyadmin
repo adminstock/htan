@@ -1,0 +1,219 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of phpMyAdmin.
+#
+# USAGE:
+#   phpmyadmin [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, MySql, Nginx, Apache2, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   20.09.2015
+#
+# REVISION:
+#   17.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   phpMyAdmin
+#
+# HTAN_CATEGORY:
+#   Admin Panel
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "phpmyadmin" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "phpmyadmin" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config web
+
+declare HTAN_MYSQL_ADMIN_HOST=""
+
+InstallPhpMyAdmin()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=4.2.12"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "phpMyAdmin" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # Для управления MySql рекомендуется установить веб-панель - phpMyAdmin.
+  Message "$(gettext "phpMyAdmin is a free and open source tool written in PHP intended to handle the administration of MySQL with the use of a web browser.")"
+  Line
+
+  local phpmyadmin_exists=false
+
+  if PackageExists phpmyadmin; then
+    phpmyadmin_exists=true
+  fi
+
+  if [[ $phpmyadmin_exists == true ]]; then
+    # На сервере уже установлена панель phpMyAdmin.
+    Message "$(gettext "On this server is already installed %s.")" "phpMyAdmin"
+    # Хотите провести конфигурацию (файл настроек будет перезаписан)?
+    if ! Confirm "$(gettext "Would you like to configure? (the current settings will be overwritten)")" -yes; then
+      # Операция прервана пользователем.
+      Message "$(gettext "Operation canceled by the user.")"
+      return
+    fi
+  fi
+
+  if [[ $phpmyadmin_exists == false ]]; then
+    if ! PackageInstall phpmyadmin -confirm=true -title="phpMyAdmin" $tested; then
+      Line
+      Message "$(gettext "Done.")"
+      return
+    fi
+  fi
+
+  #if [[ ! -f /etc/apache2/conf-available/phpmyadmin.conf ]]; then
+  #  Execute -c="sudo ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-available/phpmyadmin.conf >> $HTAN_LOG 2>&1" -m="Добавление файла конфигурации для Apache …" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  #  Execute -c="sudo a2enconf phpmyadmin >> $HTAN_LOG 2>&1" -m="Активация конфигурации …" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  #  # sudo service apache2 reload
+  #fi
+
+  Line
+
+  # get hostname for MySql
+  local mysql_host=""
+  while true; do
+    # Введите адрес сервера MySql:
+    Message "$(gettext "Enter the address of the server %s:")" "MySql" -s="$DEF_STYLE_ENTER"
+    Read -e -i "${HTAN_MYSQL_HOST:-localhost}" mysql_host
+    if [[ -n "$mysql_host" ]]; then
+      break
+    fi
+  done
+  Line
+
+  # get port for MySql
+  local mysql_port="${HTAN_MYSQL_PORT:-3306}"
+  if [[ "$mysql_host" != "localhost" ]]; then
+    while true; do
+      # Введите порт сервера MySql:
+      Message "$(gettext "Enter the port number of the server %s:")" "MySql" -s="$DEF_STYLE_ENTER"
+      Read -e -i "${HTAN_MYSQL_PORT:-3306}" mysql_port
+      if [[ -n "$mysql_port" && "$mysql_port" =~ ^[0-9]+$ ]] && (( $mysql_port >= 1 && $mysql_port <= 65535 )); then
+        break
+      fi
+    done
+
+    Line
+  fi
+
+  # config phpMyAdmin
+  local phpmyadmin_config_source="$HTAN_PATH_DATA/phpmyadmin.config.inc.php"
+  local phpmyadmin_config_target="/etc/phpmyadmin/config.inc.php"
+  if [[ -f $phpmyadmin_config_source ]]; then
+    local c="sudo cp $phpmyadmin_config_source $phpmyadmin_config_target >> $HTAN_LOG 2>&1"
+    # Создание файла конфигурации phpMyAdmin …
+    Execute -c="$c" -m="$(gettext "Creating configuration file for %s …")" -a="phpMyAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    # config
+    ReplaceMarker $phpmyadmin_config_target "blowfish_secret" "$(date | md5sum | head -c12)"
+    ReplaceMarker $phpmyadmin_config_target "auth_type" "cookie" # http
+    ReplaceMarker $phpmyadmin_config_target "auth_http_realm" "Protected space of $HTAN_MYSQL_ADMIN_HOST"
+    ReplaceMarker $phpmyadmin_config_target "host" "$mysql_host"
+    ReplaceMarker $phpmyadmin_config_target "port" "$mysql_port"
+    ReplaceMarker $phpmyadmin_config_target "connect_type" "tcp"
+    ReplaceMarker $phpmyadmin_config_target "compress" "false"
+    ReplaceMarker $phpmyadmin_config_target "nopassword" "false"
+    ReplaceMarker $phpmyadmin_config_target "AllowNoPassword" "false"
+    ReplaceMarker $phpmyadmin_config_target "DefaultConnectionCollation" "utf8_general_ci"
+    ReplaceMarker $phpmyadmin_config_target "DefaultLang" "${LANG:0:2}"
+    ReplaceMarker $phpmyadmin_config_target "MaxRows" "100"
+    # $cfg['LoginCookieRecall'] булево выражение
+    # Определяет, должен ли предыдущий логин быть использован в cookie-аутентификации или нет.
+    # $cfg[LoginCookieValidity] число [количество секунд]
+    # Определяет как долго может длиться идентификация куки.
+    # $cfg[LoginCookieStore] число [количество секунд]
+    # Определяет как долго хранится идентификационная кука в браузере. По умолчанию - 0, это означает, что она будет храниться на продолжение текущей сессии. Такое значение рекомендуется при работе в потенциально ненадежных средах.
+    # $cfg[LoginCookieDeleteAll] булево выражение
+    # Если разрешено (по умолчанию), при завершении сеанса удаляются куки для всех серверов, за исключением текущего. Если запрещено - можно обходиться без завершения сеанса при работе с несколькими серверами.
+  else
+    # Невозможно настроить phpMyAdmin. Шаблон %s не найден.
+    Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="phpMyAdmin" -a="$phpmyadmin_config_source" -s="$DEF_STYLE_ERROR"
+    Line
+  fi
+
+  # Message "$(gettext "You can add site to access the %s, or do it later, when installing SmallServerAdmin. Recommend using SmallServerAdmin.")" "phpMyAdmin"
+  # Line
+
+  # Хотите настроить веб-доступ к phpMyAdmin?
+  if Confirm "$(gettext "Do you want to set up web access to %s?")" "phpMyAdmin" -yes; then
+    Line
+    # Введите домен, по которому будет доступна панель phpMyAdmin:
+    EnterHost "$(printf "$(gettext "Enter the domain for %s:")" "phpMyAdmin")" -default="phpmyadmin.$HOSTNAME"
+    Line
+
+    local phpmyadmin_host="$HTAN_ENTERED_HOST"
+
+    AddHost "$phpmyadmin_host"
+    Line
+
+    # Nginx only
+    AddSiteToNginx -host="$phpmyadmin_host" -source="phpmyadmin-nginx-only.conf"
+    Line
+
+    # Nginx + Apache
+    # AddSiteToNginx -host="$phpmyadmin_host" -source="phpmyadmin.conf"
+    # Line
+
+    # AddSiteToApache -host="$phpmyadmin_host" -source="phpmyadmin.conf"
+    # Line
+
+    ServerInfo "phpMyAdmin:\n"
+    ServerInfo "--------------------------------------------\n"
+    ServerInfo "$(gettext "Address"): http://$phpmyadmin_host\n"
+    ServerInfo "$(gettext "Login"): root\n"
+    ServerInfo "$(gettext "Password"): $HTAN_MYSQL_ROOT_PASSWORD\n"
+    ServerInfo "--------------------------------------------\n\n"
+  fi
+
+  Message "$(gettext "Done.")"
+}
+
+InstallPhpMyAdmin

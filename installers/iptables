@@ -1,0 +1,226 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of iptables.
+#
+# USAGE:
+#   iptables [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   23.11.2015
+#
+# REVISION:
+#   20.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   IPTables - firewall
+#
+# HTAN_CATEGORY:
+#   Security
+#
+# HTAN_OPTIONAL:
+#   false
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "iptables" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "iptables" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool config package
+
+InstallIptables()
+{
+  # tested version
+  local -A tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested[iptables]="-version=1.4.21"
+    tested[iptables-persistent]="-version=1.0.3"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "iptables" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # Iptables - утилита командной строки, является стандартным интерфейсом управления работой межсетевого экрана (брандмауэра) netfilter.
+  Message "$(gettext "Iptables is an extremely flexible firewall utility built for Linux operating systems.")"
+  Line -
+
+  PackageInstall "iptables" -confirm=false ${tested[iptables]}
+  Line -
+
+  PackageInstall "iptables-persistent" -confirm=false ${tested[iptables-persistent]}
+  Line -
+
+  # Разрешить внешний ping сервера?
+  Confirm "$(gettext "Do you want to allow external ping of the server?")" -yes
+  local allow_ping=$?
+
+  Line -
+
+  # get ssh port number
+  local ssh_port="$(GetValue /etc/ssh/sshd_config Port)"
+
+  local c=""
+  local ports=($ssh_port 20 21 80 443)
+  local ftp_pasv_enable ftp_pasv_min_port ftp_pasv_max_port
+
+  if PackageExists vsftpd; then
+    ftp_pasv_enable="$(GetValue /etc/vsftpd.conf pasv_enable =)"
+    ftp_pasv_min_port="$(GetValue /etc/vsftpd.conf pasv_min_port =)"
+    ftp_pasv_max_port="$(GetValue /etc/vsftpd.conf pasv_max_port =)"
+  fi
+
+  IptablesCommand "iptables -P INPUT ACCEPT" "Reset INPUT rules …" 
+  IptablesCommand "iptables -P FORWARD ACCEPT" "Reset FORWARD rules …" 
+  IptablesCommand "iptables -P OUTPUT ACCEPT" "Reset OUTPUT rules …" 
+  IptablesCommand "iptables -F" "Deleting all chains …"
+  IptablesCommand "iptables -X" "Deleting user-defined chain …"
+
+  # allow all loopback (lo0) traffic and drop all traffic to 127/8 that doesn't use lo0
+  IptablesCommand "iptables -A INPUT -i lo -j ACCEPT" "Allow all loopback (lo0) traffic …"
+  IptablesCommand "iptables -A INPUT ! -i lo -d 127.0.0.0/8 -j REJECT" "Drop all traffic to 127/8 that doesn't use lo0 …"
+
+  # allow all established inbound connections
+  IptablesCommand "iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT" "Allow all established inbound connections …"
+
+  if [[ $allow_ping == 0 ]]; then
+    IptablesCommand "iptables -A INPUT -p icmp --icmp-type echo-request -j ACCEPT" "Allow ICMP …"
+  else
+    IptablesCommand "iptables -A INPUT -p icmp --icmp-type echo-request -i eth0 -j ACCEPT" "Allow only local ICMP …"
+  fi
+
+  # ports
+  for current_port in ${ports[@]}; do
+    IptablesCommand "iptables -A INPUT -p tcp --dport $current_port -j ACCEPT" "Allow port #$current_port …"
+  done
+
+  # TODO
+  #if [[ "$ftp_pasv_enable" == "YES" ]]; then
+    # sudo modprobe ip_conntrack
+    # sudo modprobe ip_conntrack_ftp
+  #fi
+
+  # allow all OUTPUT traffic
+  IptablesCommand "iptables -A OUTPUT -j ACCEPT" "Allows all outbound traffic …"
+
+  # reject all other
+  # IptablesCommand "iptables -A INPUT -p tcp -j REJECT --reject-with tcp-reset" "Reject other TCP connections …"
+  # IptablesCommand "iptables -A INPUT -p udp -j REJECT --reject-with icmp-port-unreachable" "Reject other UDP connections …"
+  IptablesCommand "iptables -A INPUT -j REJECT --reject-with icmp-port-unreachable" "Reject other INPUT connections …"
+  IptablesCommand "iptables -A FORWARD -j REJECT" "Reject FORWARD connections …"
+
+  IptablesCommand "iptables-save > /etc/iptables/rules.v4" "Saving rules for IPv4 …"
+
+  Line -
+
+  local ipt_see_rules="-yes"
+  # Хотите посмотреть созданные правила для %s?
+  if Confirm "$(gettext "Do you want to see the rules created for %s?")" -a="IPv4" -yes; then
+    Line -
+    sudo iptables -L | less -RXFE --prompt="$(gettext "HELP -- Press RETURN for more, or Q for exit")"
+  else
+    ipt_see_rules="-no"
+  fi
+
+  Line -
+
+  Confirm "$(gettext "Do you want to create rules for %s?")" -a="IPv6" -yes;
+  local ip6_need=$?
+
+  Line -
+
+  IptablesCommand "ip6tables -P INPUT ACCEPT" "Reset INPUT rules …" 
+  IptablesCommand "ip6tables -P FORWARD ACCEPT" "Reset FORWARD rules …" 
+  IptablesCommand "ip6tables -P OUTPUT ACCEPT" "Reset OUTPUT rules …" 
+  IptablesCommand "ip6tables -F" "Deleting all chains …"
+  IptablesCommand "ip6tables -X" "Deleting user-defined chain …"
+
+  # Создать правила для IPv6?
+  if [[ $ip6_need = 0 ]]; then
+    # accepts all established inbound connections
+    IptablesCommand "ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT" "Accepts all established inbound connections"
+
+    if [[ $allow_ping == 0 ]]; then
+      IptablesCommand "ip6tables -A INPUT -p icmpv6 -j ACCEPT" "Allow ICMP …"
+    else
+      IptablesCommand "ip6tables -A INPUT -p icmpv6 -i eth0 -j ACCEPT" "Allow only local ICMP …"
+    fi
+    IptablesCommand "ip6tables -A OUTPUT -p icmpv6 -j ACCEPT" "Allow output ICMP …"
+
+    # ports
+    for current_port in ${ports[@]}; do
+      IptablesCommand "ip6tables -A INPUT -p tcp --dport $current_port -j ACCEPT" "Allow port #$current_port …"
+    done
+
+    IptablesCommand "ip6tables -A INPUT -j REJECT --reject-with icmp6-adm-prohibited" "Some rule …"
+
+    # sudo ip6tables -P INPUT DROP
+    # sudo ip6tables -P FORWARD DROP
+    # sudo ip6tables -P OUTPUT ACCEPT
+
+    IptablesCommand "ip6tables-save > /etc/iptables/rules.v6" "Saving rules for IPv6 …"
+  else
+    IptablesCommand "ip6tables -P INPUT DROP" "Drop all INPUT connections …"
+    IptablesCommand "ip6tables -P FORWARD DROP" "Drop all FORWARD connections …"
+    IptablesCommand "ip6tables -P OUTPUT DROP" "Drop all OUTPUT connections …"
+  fi
+
+  Line -
+
+  if Confirm "$(gettext "Do you want to see the rules created for %s?")" -a="IPv6" $ipt_see_rules; then
+    Line -
+    sudo ip6tables -L | less -RXFE --prompt="$(gettext "HELP -- Press RETURN for more, or Q for exit")"
+  fi
+
+  # sudo iptables -S
+  # sudo ip6tables -S
+
+  Line -
+  Message "$(gettext "Done.")"
+}
+
+IptablesCommand()
+{
+  Execute -c="export DEBIAN_FRONTEND=noninteractive; sudo $1 >> $HTAN_LOG 2>&1" -m="$2" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+}
+
+InstallIptables

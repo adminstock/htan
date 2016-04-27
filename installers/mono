@@ -1,0 +1,220 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of Mono.
+#
+# USAGE:
+#   mono [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   14.09.2015
+#
+# REVISION:
+#   19.03.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Mono ASP.NET
+#
+# HTAN_CATEGORY:
+#   Application Development
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "mono" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "mono" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallMono()
+{
+  # http://www.mono-project.com/docs/getting-started/install/linux/#debian-ubuntu-and-derivatives
+
+  # tested version
+  local -A tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    # 4.2.1.102-0xamarin1
+    tested[mono-devel]="-version=4.2.3"
+    tested[mono-complete]="-version=4.2.3"
+    # 2014.04.14-1
+    tested[referenceassemblies-pcl]="-version=2014.04.14"
+    # 4.2.1.102-0xamarin1
+    tested[ca-certificates-mono]="-version=4.2.3"
+    # 3.12-0xamarin1+compat2
+    tested[libapache2-mod-mono]="-version=3.12"
+    # 3.8-0xamarin2
+    tested[mono-apache-server4]="-version=3.8"
+    # Mono.WebServer2.dll 0.4.0.0
+    tested[mono-fastcgi-server4]="-version=0.4.0.0"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "Mono" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # Mono - набор компонентов для запуска приложений .NET Framеwork.
+  Message "$(gettext "Mono is a free and open source project led by Xamarin to create an Ecma standard-compliant, .NET Framework-compatible set of tools including, among others, a C# compiler and a Common Language Runtime.")"
+
+  if ! PackageExists mono-devel; then
+    Line
+
+    # Хотите установить Mono?
+    if ! Confirm "$(gettext "Do you want to install %s?")" "Mono" -yes; then
+      # Установка прервана пользователем.
+      Message "$(gettext "Installation canceled by the user.")"
+      return
+    fi
+  fi
+
+  Line
+
+  # add keys
+  Execute -c="sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF >> $HTAN_LOG 2>&1" -m="$(gettext "Adding keys …")" -sp="$DEF_STYLE_PACKAGE_PROC" -sc="$DEF_STYLE_PACKAGE_COMP"
+  Line
+
+  $(echo "deb http://download.mono-project.com/repo/debian wheezy main" | sudo tee /etc/apt/sources.list.d/mono-xamarin.list > /dev/null)
+
+  $(echo "deb http://download.mono-project.com/repo/debian wheezy-apache24-compat main" | sudo tee -a /etc/apt/sources.list.d/mono-xamarin.list > /dev/null)
+
+  #wait
+
+  $(echo "deb http://download.mono-project.com/repo/debian wheezy-libjpeg62-compat main" | sudo tee -a /etc/apt/sources.list.d/mono-xamarin.list > /dev/null)
+  #wait
+
+  PackageUpdate
+  #PackageUpgradeAll
+  Line
+
+  # installation
+  if ! PackageInstall mono-devel -confirm=false -root ${tested[mono-devel]}; then
+    return 1
+  fi
+
+  Line
+
+  PackageInstall mono-complete -confirm=false -root ${tested[mono-complete]}
+  Line
+
+  # PackageInstall referenceassemblies-pcl -confirm=true -title="Пакет поддержки PCL для Mono" -root
+  # Пакет поддержки SSL для Mono
+  PackageInstall ca-certificates-mono -confirm=true -title="$(gettext "SSL support for Mono")" -root ${tested[ca-certificates-mono]}
+  Line
+
+  # testing
+  if [[ -f "$HTAN_PATH_DATA/mono/hello.cs" ]]; then
+    # Сборка тестового файла …
+    Execute -c="mcs $HTAN_PATH_DATA/mono/hello.cs -out:$HOME/hello.exe" -m="$(gettext "Building the test file …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+
+    if [[ -f "$HOME/hello.exe" ]]; then
+      # Исполнение тестового файла …
+      Execute -c="mono $HOME/hello.exe 2> /dev/null | grep -q 'Hello'" -m="$(gettext "Running the compiled file …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    else
+      # Файл %s не найден. Вероятно во время компиляции возникли какие-то проблемы.
+      Message "$(gettext "File %s was not found. Probably the build process there were some problems.")" "$HOME/hello.exe" -s="$DEF_STYLE_ERROR"
+    fi
+  else
+    # Файл %s не найден. Невозможно выполнить проверку компилятора Mono.
+    Message "$(gettext "File %s was not found. Unable to check compiler Mono.")" "$HTAN_PATH_DATA/mono/hello.cs" -s="$DEF_STYLE_ERROR"
+  fi
+
+  Line =
+  # ## Установка и конфигурация Mono для ASP.NET.
+  Message "$(gettext "## Installing and configuring Mono for ASP.NET.")"
+  Line =
+
+  ServiceStop apache2
+  Line
+
+  ServiceStop nginx
+  Line
+
+  # http://www.mono-project.com/docs/web/mod_mono/
+  # https://help.ubuntu.com/community/ModMono
+  PackageInstall libapache2-mod-mono -confirm=false -root ${tested[libapache2-mod-mono]}
+  Line
+
+  # PackageInstall mono-apache-server  -confirm=false -root # 1.0/1.1
+  # PackageInstall mono-apache-server2 -confirm=false -root # 2.0/3.5
+  # 4.0/4.5
+  PackageInstall mono-apache-server4 -confirm=false -root ${tested[mono-apache-server4]}
+  Line
+  # PackageInstall mono-xsp false
+
+  # enable mono module
+  # sudo a2enmod mod_mono_auto # / a2dismod mod_mono_auto
+  if ! $(sudo ls /etc/apache2/mods-enabled/ 2> /dev/null | grep -q "mod_mono.load"); then
+    # manual mode
+    sudo a2enmod mod_mono 
+    wait
+  fi
+
+  # config
+  # Настройка модуля Mono...
+  Message "$(gettext "Configuring Mono for Apache …")" -n -s="$DEF_STYLE_ACTION"
+  {
+    (sudo cp "$HTAN_PATH_DATA/data/mono/mod_mono.conf" /etc/apache2/mods-available/mod_mono.conf 2> /dev/null; wait) && OK
+  } || {
+    Fail
+  }
+
+  Line
+
+  PackageInstall mono-fastcgi-server4 -confirm=false -root ${tested[mono-fastcgi-server4]}
+
+  # ServiceStart apache2 nginx
+  # /var/log/apache2/Error.log
+
+  Line
+  Message "$(gettext "Done.")"
+
+  # /etc/mono/2.0/machine.config
+  # /etc/mono/4.0/machine.config
+  # /etc/mono/4.5/machine.config
+
+  # compatibility / совместимость
+  # http://www.mono-project.com/docs/about-mono/compatibility/
+}
+
+InstallMono

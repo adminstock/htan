@@ -1,0 +1,243 @@
+#!/bin/bash
+
+#======================================================================
+# Represents methods to work with services.
+#
+# USAGE:
+#   service [--debug] [--version] [--help] [--nocolor]
+#
+#           [--start|stop|restart List of service names]
+#
+#           [--is[-running]="Service name"]
+#
+# NAME:
+#   HTAN Service Tool
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   19.09.2015
+#
+# REVISION:
+#   19.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "service" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/common"; then
+      if [[ "${0##*/}" != "service" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+HTAN_INCLUDED_TOOLS=("${HTAN_INCLUDED_TOOLS[@]}" "service")
+
+#======================================================================
+# Starts the specified services.
+#
+# USAGE:
+#   ServiceStart $?
+#
+# ARGUMENTS:
+#   $?
+#     List of services to start.
+#
+# RETURNS:
+#   Returns 0 (true) if successful; otherwise 1 (false).
+#======================================================================
+ServiceStart()
+{
+  Debug "ServiceStart $#"
+  local sesta_name sesta_i sesta_count=$#
+  for (( sesta_i=1; sesta_i<=sesta_count; sesta_i++ )); do
+    sesta_name="$1"
+    Debug " -- %s" "$sesta_name"
+    if ServiceIsRunning "$sesta_name"; then
+      # Служба %s уже запущена.
+      Message "$(gettext "%s is already running.")" "$sesta_name" -s="$DEF_STYLE_SERVICE_COMP"
+    else
+      local c="sudo service $sesta_name start >> $HTAN_LOG 2>&1"
+      # Запуск службы %s …
+      Execute -c="$c" -m="$(gettext "Starting the service %s …")" -a="$sesta_name" -sp="$DEF_STYLE_SERVICE_PROC" -sc="$DEF_STYLE_SERVICE_COMP"
+      if [[ $? != 0 ]]; then
+        # Не удалось запустить %s. Попробуйте выполнить операцию вручную.
+        Message "$(gettext "Unable to start the service %s. Try to perform the operation manually.")" "$sesta_name" -s="$DEF_STYLE_ERROR"
+        # Для получения подробностей, ознакомтесь с файлом журнала %s.
+        Message "$(gettext "For details, see the log file: %s.")" "$HTAN_LOG" -s="$DEF_STYLE_ERROR"
+        # Последние записи из журнала:
+        Message "$(gettext "Last log records:")" -s="$DEF_STYLE_ERROR"
+        ShowLastLogRecords -s="$DEF_STYLE_ERROR"
+        return 1
+      fi
+    fi
+    shift
+  done
+}
+
+#======================================================================
+# Stops the specified services.
+#
+# USAGE:
+#   ServiceStop $?
+#
+# ARGUMENTS:
+#   $?
+#     List of services to stop.
+#
+# RETURNS:
+#   None
+#======================================================================
+ServiceStop()
+{
+  Debug "ServiceStop $#"
+  local sesto_name sesto_i sesto_count=$#
+  for (( sesto_i=1; sesto_i<=sesto_count; sesto_i++ )); do
+    sesto_name="$1"
+    Debug " -- %s" "$sesto_name"
+    if ServiceIsRunning "$sesto_name"; then
+      local c="sudo service $sesto_name stop >> $HTAN_LOG 2>&1"
+      # Остановка службы %s …
+      Execute -c="$c" -m="$(gettext "Stopping the service %s …")" -a="$sesto_name" -sp="$DEF_STYLE_SERVICE_PROC" -sc="$DEF_STYLE_SERVICE_COMP"
+    else
+      Message "$(gettext "Stopping the service %s …")" -a="$sesto_name" -s="$DEF_STYLE_SERVICE_COMP" -n
+      OK
+    fi
+    shift
+  done
+}
+
+#======================================================================
+# Restarts the specified services.
+#
+# USAGE:
+#   ServiceRestart $?
+#
+# ARGUMENTS:
+#   $?
+#     List of services to restart (stop and start).
+#
+# RETURNS:
+#   None
+#======================================================================
+ServiceRestart()
+{
+  Debug "ServiceRestart $#"
+  local sere_count=$# sere_i sere_name
+  for (( sere_i=1; sere_i<=sere_count; sere_i++ )); do
+    sere_name="$1"
+    ServiceStop "$sere_name"
+    Line
+    ServiceStart "$sere_name"
+    shift
+  done
+}
+
+#======================================================================
+# Reload the specified services.
+#
+# USAGE:
+#   ServiceReload $?
+#
+# ARGUMENTS:
+#   $?
+#     List of services to reload.
+#
+# RETURNS:
+#   None
+#======================================================================
+ServiceReload()
+{
+  Debug "ServiceReload $#"
+  local sere_name sere_i sere_count=$#
+  for (( sere_i=1; sere_i<=sere_count; sere_i++ )); do
+    sere_name="$1"
+    Debug " -- %s" "$sere_name"
+    if ServiceIsRunning "$sere_name"; then
+      local c="sudo service $sere_name reload >> $HTAN_LOG 2>&1"
+      Execute -c="$c" -m="$(gettext "Reloading the service %s …")" -a="$sere_name" -sp="$DEF_STYLE_SERVICE_PROC" -sc="$DEF_STYLE_SERVICE_COMP"
+    else
+      Message "$(gettext "Reloading the service %s …")" -a="$sere_name" -s="$DEF_STYLE_SERVICE_COMP" -n
+      Fail
+    fi
+    shift
+  done
+}
+
+#======================================================================
+# Checks that the specified service is running or not.
+#
+# USAGE:
+#   ServiceIsRunning "service name"
+#
+# ARGUMENTS:
+#   $1
+#     Service name to check.
+#
+# RETURNS:
+#   Returns 0 (true) if running; otherwise 1 (false).
+#======================================================================
+ServiceIsRunning()
+{
+  local service="$1"
+
+  if [ -z "$service" ]; then
+    # Ошибка: Необходимо указать имя службы!
+    Error "$(gettext "Error: Service name is required!")"
+  fi
+
+  return $(ps ax | grep -v grep | grep -Pq ".*/$service\s+.*") 
+}
+
+#----------------------------------------------------------------------
+# Self-script
+#----------------------------------------------------------------------
+if [[ "${0##*/}" == "service" ]]; then
+  ParseArgs "$@"
+
+  if [[ -n "${HTAN_PARSE_ARGS_RESULT[start]}" ]]; then
+    ServiceStart "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[stop]}" ]]; then
+    ServiceStop "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[restart]}" ]]; then
+    ServiceRestart "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[is]}" ]]; then
+    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT[is]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[is-run]}" ]]; then
+    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT[is-run]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[is-running]}" ]]; then
+    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT[is-running]}"
+  fi
+
+  exit $?
+fi

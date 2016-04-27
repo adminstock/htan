@@ -1,0 +1,102 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of xinetd.
+#
+# USAGE:
+#   xinetd [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   23.09.2015
+#
+# REVISION:
+#   15.10.2015
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   eXtended InterNET Daemon (xinetd)
+#
+# HTAN_CATEGORY:
+#   Services
+#
+# HTAN_OPTIONAL:
+#   false
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "xinetd" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "xinetd" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package
+
+InstallXinetd()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=2.3.15"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "xinetd" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  if PackageExists inetd; then
+    # На сервере обнаружена устаревшая служба inetd.\n
+    # Рекомендуется заменить её на xinetd.
+    Message "$(gettext "On this server detected service inetd.\nIt is recommended to replace it with a new service - xinetd.")"
+  else
+    if ! PackageExists xinetd; then
+      # Служба xinetd необходима для управления сетевыми соединениями и контроля доступа.
+      Message "$(gettext "Xinetd service is needed to manage the network connections and access control.")"
+      Line
+      PackageInstall xinetd -confirm=false -title="eXtended InterNET Daemon (xinetd)" $tested
+    else
+      # Служба xinetd уже установлена. Дополнительные действия не требуются.
+      Message "$(gettext "Xinetd service is already installed. Additional action is not required.")"
+    fi
+  fi
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallXinetd

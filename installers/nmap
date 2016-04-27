@@ -1,0 +1,113 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation of Nmap.
+#
+# USAGE:
+#   nmap [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   25.11.2015
+#
+# REVISION:
+#   17.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Nmap - security&port scanner, network exploration tool
+#
+# HTAN_CATEGORY:
+#   Tools
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "nmap" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "nmap" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service
+
+InstallNmap()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=6.47"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing %s.")" "nmap" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # Nmap - это утилита для исследования сети и сканер портов.
+  Message "$(gettext "Nmap is security and port scanner, network exploration tool.")"
+  Line
+
+  if PackageInstall "nmap" -confirm=true $tested; then
+    Line
+    # Message "Можно выполнить сканирование портов данного сервера."
+    # Если вы впервые разворачиваете сервер, то рекомендуется провести проверку после перезагрузки, когда будут запущены все сетевые службы и межсетевой экран.
+    Message "$(gettext "It is recommended to scan the security of the server. But if you are only now configure the server, it is recommended to scan, after the server is restarted.")"
+    Line
+    # Хотите провести сканирование портов сейчас?
+    if Confirm "$(gettext "Do you want to scan ports now?")" -no; then
+      if [[ -z "$HTAN_SERVER_IP" ]]; then
+        GetServerIP
+        Line
+      fi
+      sudo nmap "$HTAN_SERVER_IP"
+      Line
+      PressAnyKey
+    else
+      Line
+      # Для выполнения сканирования вручную необходимо выполнить команду:
+      Message "$(gettext "To scan manually, perform the following command:")"
+      Message "sudo nmap $HTAN_SERVER_IP"
+    fi
+  fi
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallNmap

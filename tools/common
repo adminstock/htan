@@ -1,0 +1,1864 @@
+#!/bin/bash
+
+#======================================================================
+# Common helper functions of HTAN.
+#
+# USAGE:
+#   common [--debug] [--version] [--help] [--nocolor]
+#
+#          [--message="Message text" [-n] [-a...]]
+#
+#          [
+#            --confirm[="Confirm text"]
+#            [-yes|no]
+#            [-timeout=Waiting in seconds]
+#            [-a...]
+#          ]
+#
+#          [--error[="Error message"] [-n] [-a...]]
+#
+#          [--line[="char"]]
+#
+#          [--ok] [--success] [--fail]
+#          [--nofound] [--cancelled]
+#          [--label="Label text" [-s="Label style"]]
+#
+#          [--trim="string"]
+#          [--tolower="string"] [--toupper="string"]
+#
+#          [--ishost="example.org"]
+#          [--ismail="example@example.org"]
+#          [--isport=123]
+#
+#          [--anykey]
+#
+#          [
+#            --command="Command"
+#            [--message="Command description"]
+#            [-sp=Style of processing status]
+#            [-sc=Style of completed status]
+#            [-a=Description args...]
+#          ]
+#
+# NAME:
+#   HTAN Common Tool
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.3
+#
+# CREATED:
+#   21.09.2015
+#
+# REVISION:
+#   20.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#======================================================================
+
+# Localization
+. gettext.sh
+TEXTDOMAIN=htan
+export TEXTDOMAIN
+
+readonly HOSTING_TOOLS_COMMON_FILE_INCLUDED=true
+
+# The associative array for results of the parse arguments function
+declare -A HTAN_PARSE_ARGS_RESULT
+declare -a HTAN_PARSE_ARGS_RESULT_NK
+declare HTAN_PARSE_ARGS_RESULT_DEF
+# shellcheck disable=SC2034
+declare HTAN_PASSWORD=""
+declare HTAN_ENTERED_HOST=""
+declare HTAN_ENTERED_EMAIL=""
+
+# The list of included tools
+declare -a HTAN_INCLUDED_TOOLS=("common")
+
+# Disable styles
+declare HTAN_UNSTYLED=false
+
+# Paths
+declare HTAN_LOG=""
+declare HTAN_SERVER_INFO=""
+declare -a HTAN_INSTALLED
+declare HTAN_PATH_ROOT=""
+declare HTAN_PATH_DATA=""
+declare HTAN_PATH_TOOLS=""
+# shellcheck disable=SC2034
+declare -a HTAN_PATH_INSTALLERS
+
+if [[ -z "$HTAN_BASE_PATH" ]]; then
+  declare -a HTAN_SEARCH_PATH=("/.." "")
+  for search_path in "${HTAN_SEARCH_PATH[@]}"; do
+    if [[ -d "$(cd "$(dirname "$0")" && pwd)$search_path/data" && -d "$(cd "$(dirname "$0")" && pwd)$search_path/tools" && -d "$(cd "$(dirname "$0")" && pwd)$search_path/installers" ]]; then
+      HTAN_PATH_ROOT="$(cd "$(dirname "$0")" && pwd)$search_path"
+    fi
+  done
+else
+  HTAN_PATH_ROOT="$HTAN_BASE_PATH"
+fi
+
+TEXTDOMAINDIR="$HTAN_PATH_ROOT/localization"
+export TEXTDOMAINDIR
+
+HTAN_PATH_DATA="$HTAN_PATH_ROOT/data"
+HTAN_PATH_TOOLS="$HTAN_PATH_ROOT/tools"
+HTAN_PATH_INSTALLERS="$HTAN_PATH_ROOT/installers"
+# HTAN_PATH_ROOT="$HTAN_PATH_ROOT/"
+
+# Fix for less
+export LESSCHARSET="UTF-8"
+
+# Server IP
+declare HTAN_SERVER_IP
+# Debug mode
+declare HTAN_DEBUG=false
+# Install only tested package versions
+declare HTAN_TESTED=false
+# Small crutch for self-script arguments :)
+declare HTAN_ONE_SKIP_PARSE_ARGS=false
+
+# HTAN version number
+readonly HTAN_VERSION="$([[ -f $HTAN_PATH_ROOT/.version ]] && cat $HTAN_PATH_ROOT/.version || echo 'unknown')"
+
+# Styles
+readonly STYLE_NORMAL='\033[0m'
+readonly STYLE_BOLD='\033[1m'
+readonly STYLE_INVERSE='\033[7m'
+readonly STYLE_NINVERSE='\033[7m'
+
+# Dark
+readonly STYLE_BLACK='\033[0;30m'
+readonly STYLE_BLUE='\033[0;34m'
+readonly STYLE_GREEN='\033[0;32m'
+readonly STYLE_CYAN='\033[0;36m'
+readonly STYLE_RED='\033[0;31m'
+readonly STYLE_PURPLE='\033[0;35m'
+readonly STYLE_YELLOW='\033[0;33m'
+readonly STYLE_GRAY='\033[1;30m'
+# Light
+readonly STYLE_LGRAY='\033[0;37m' 
+readonly STYLE_LBLUE='\033[1;34m'
+readonly STYLE_LGREEN='\033[1;32m'
+readonly STYLE_LCYAN='\033[1;36m'
+readonly STYLE_LRED='\033[1;31m'
+readonly STYLE_LPURPLE='\033[1;35m'
+readonly STYLE_LYELLOW='\033[1;33m'
+readonly STYLE_WHITE='\033[1;37m'
+
+# Background
+readonly STYLE_BGBLACK='\033[40m'
+readonly STYLE_BGBLUE='\033[44m'
+readonly STYLE_BGGREEN='\033[42m'
+readonly STYLE_BGCYAN='\033[46m'
+readonly STYLE_BGRED='\033[41m'
+readonly STYLE_BGPURPLE='\033[45m'
+readonly STYLE_BGYELLOW='\033[43m'
+readonly STYLE_BGGRAY='\033[47m'
+
+readonly STYLE_DEF='\033[0;39m'
+readonly STYLE_BGDEF='\033[49m'
+# // --
+
+# default styles
+readonly DEF_STYLE_HEADER="$STYLE_BOLD$STYLE_WHITE"
+readonly DEF_STYLE_TEXT="$STYLE_WHITE"
+readonly DEF_STYLE_ERROR="$STYLE_LRED"
+readonly DEF_STYLE_WARNING="$STYLE_LRED"
+readonly DEF_STYLE_DEBUG="$STYLE_GRAY"
+
+readonly DEF_STYLE_QUESTION="$STYLE_LYELLOW"
+readonly DEF_STYLE_ENTER="$STYLE_LYELLOW"
+readonly DEF_STYLE_DEF_ANSWER="$STYLE_WHITE" # $STYLE_BLACK$STYLE_BGGRAY
+
+readonly DEF_STYLE_INPUT="$STYLE_WHITE" # user input
+readonly DEF_STYLE_LINE="$STYLE_WHITE"
+readonly DEF_STYLE_WAITING="$STYLE_WHITE"
+readonly DEF_STYLE_CONFIG=""
+readonly DEF_STYLE_CONFIG_FILE="$STYLE_WHITE" # $STYLE_BLACK$STYLE_BGGRAY
+readonly DEF_STYLE_CONFIG_KEY="$STYLE_WHITE"
+readonly DEF_STYLE_CONFIG_VALUE="$STYLE_LCYAN"
+readonly DEF_STYLE_CONFIG_VALUE_ON="$STYLE_LGREEN"
+readonly DEF_STYLE_CONFIG_VALUE_OFF="$STYLE_LRED"
+
+readonly DEF_STYLE_SERVICE="$STYLE_PURPLE"
+readonly DEF_STYLE_SERVICE_PROC="$STYLE_LPURPLE"
+readonly DEF_STYLE_SERVICE_COMP="$STYLE_PURPLE"
+
+readonly DEF_STYLE_PACKAGE="$STYLE_PURPLE"
+readonly DEF_STYLE_PACKAGE_PROC="$STYLE_LPURPLE"
+readonly DEF_STYLE_PACKAGE_COMP="$STYLE_PURPLE"
+
+readonly DEF_STYLE_ACTION="$STYLE_PURPLE"
+readonly DEF_STYLE_ACTION_PROC="$STYLE_LPURPLE"
+readonly DEF_STYLE_ACTION_COMP="$STYLE_PURPLE"
+
+readonly DEF_STYLE_INCLUDE="$STYLE_CYAN"
+readonly DEF_STYLE_SUCCESS="$STYLE_GREEN"
+readonly DEF_STYLE_FAIL="$STYLE_RED"
+readonly DEF_STYLE_CANCELLED="$STYLE_GRAY"
+
+readonly SYS_OS_VERSION="$(cat /etc/*release | grep "^VERSION_ID=*" | sed -r 's/VERSION_ID="([0-9]+)"/\1/')"
+readonly SYS_OS_CODE_NAME="$(cat /etc/*release | grep "^PRETTY_NAME=*" | sed -r 's/PRETTY_NAME="(.+)\((.+)\)"/\2/')"
+
+#======================================================================
+# Displays a line across the entire screen.
+#
+# ARGUMENTS:
+#   $1: The symbol that will be used to create a line. Default is "-".
+#   $2: Color. You can use constants $DEF_STYLE_*. 
+#       Default is $DEF_STYLE_LINE
+#
+# RETURNS:
+#   None
+#======================================================================
+Line()
+{
+  local char="$1" style="$2"
+  if [[ -z "$char" ]]; then char="-"; fi
+  if [[ -z "$style" ]]; then style="$DEF_STYLE_LINE"; fi
+
+  Style "$style"
+  printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' "$char"
+  Unstyle "$style"
+}
+
+#======================================================================
+# Sets the text style unless is not disabled with --nocolor parameter.
+#
+# ARGUMENTS:
+#   $1: Style to set. You can use constants $DEF_STYLE_*
+#
+# RETURNS:
+#   None
+#======================================================================
+Style()
+{
+  if $HTAN_UNSTYLED; then return 1; fi
+  if [[ -z "$1" ]]; then return 1; fi
+  printf "%b" "$1"
+}
+
+#======================================================================
+# Unsets the text style.
+#
+# ARGUMENTS:
+#   $1: Previously set style.
+#
+# RETURNS:
+#   None
+#======================================================================
+Unstyle()
+{
+  if $HTAN_UNSTYLED; then return 1; fi
+  if [[ -z "$1" ]]; then return 1; fi
+  Style "$STYLE_NORMAL"
+}
+
+#======================================================================
+# Turns off keyboard input.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+Block()
+{
+  stty -echo
+  {
+    while true; do
+      read -t 1 -n 1 key
+      if [[ $key = q ]]; then
+        break;
+      fi;
+    done
+  } > /dev/null
+}
+
+#======================================================================
+# Enables keyboard input.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+Unblock()
+{
+  stty echo
+
+  # Fix. May be glitches
+  stty erase '^?'
+  stty sane
+}
+
+#======================================================================
+# Clears current line of console.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+ClearRow()
+{
+  printf "\e[1A\e[0K\r"
+}
+
+#======================================================================
+# Displays debug message if the debug mode is enabled (--debug).
+#
+# USAGE:
+#   Debug "Message text"
+#
+# ARGUMENTS:
+#   $1: The text of message. Requered.
+#   $@: Other arguments for the message text.
+#
+# RETURNS:
+#   None
+#======================================================================
+Debug()
+{
+  if [[ "$HTAN_DEBUG" != true ]]; then return; fi
+  Style "$DEF_STYLE_DEBUG"
+  printf "$1" "${@:2}"
+  printf "\n"
+  Unstyle "$DEF_STYLE_DEBUG"
+}
+
+#======================================================================
+# Displays an error message and terminates the script.
+# This extension of the Message method.
+#
+# USAGE:
+#   Error [-text="Message text"] [-n] [...]
+#
+# ARGUMENTS:
+#   First argument without a name
+#   -text="Message text"
+#   -t="Message text"
+#     The text of message. Default: Unknown error.
+#
+#   -n
+#     Disable adding newline. Default: false.
+#
+#   -a
+#   ...
+#     Other arguments for the message text (-text).
+#
+# RETURNS:
+#   None
+#======================================================================
+Error()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local message=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[text]}" "${HTAN_PARSE_ARGS_RESULT[t]}" "$HTAN_PARSE_ARGS_RESULT_DEF")
+  local arguments=("${HTAN_PARSE_ARGS_RESULT_NK[@]/#/-a=}") # other arguments with pointer to the argument
+
+  Debug "Error
+ -- message=%s
+ -- arguments=%s" "$message" "${arguments[@]}"
+
+  # check message text
+  if [[ -z "$message" ]]; then
+    message="$(gettext "Unknown error.")"
+    arguments=(-t="$message" "${arguments[@]}")
+  else
+    arguments=(-t="$message" "${arguments[@]}")
+  fi
+
+  # add message style
+  arguments+=(-s="$DEF_STYLE_ERROR")
+
+  # show error message
+  Message "${arguments[@]}"
+
+  exit 1
+}
+
+#======================================================================
+# Prompts for a password and confirmation.
+#
+# USAGE:
+#   EnterPassword [-text="Password text"]
+#                 [-warning="Warning for empty password"]
+#                 [-optional]
+#
+# GLOBALS:
+#   $HTAN_PASSWORD
+#     Contains the entered password.
+#
+# ARGUMENTS:
+#   First argument without a name
+#   -text"Password text"
+#   -t="Password text"
+#     Password text. Default: "Enter password:".
+#
+#   -warning="Warning for empty password"
+#   -w="Warning for empty password"
+#     Warning, if the password is not specified.
+#     This text will be shown before confirmation cancel 
+#     entering a password.
+#
+#   -optional, -o
+#     Specifies that the password is not mandatory.
+#
+# RETURNS:
+#   Returns 0 (true) if password has been entered.
+#   Returns 1 (false) if password has not been entered.
+#======================================================================
+EnterPassword()
+{
+  ParseArgs "$@"
+  local ep_message=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[text]}" "${HTAN_PARSE_ARGS_RESULT[t]}" "$HTAN_PARSE_ARGS_RESULT_DEF")
+  local ep_optional=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[optional]}" "${HTAN_PARSE_ARGS_RESULT[o]}" "false")
+  local ep_warning=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[warning]}" "${HTAN_PARSE_ARGS_RESULT[w]}")
+
+  Debug "EnterPassword
+ -- message=%s
+ -- warning=%s
+ -- arguments=%s" "$ep_message" "$ep_warning" "${arguments[@]}"
+
+  # reset password
+  # shellcheck disable=SC2034
+  HTAN_PASSWORD=""
+
+  # check message text
+  if [[ -z "$ep_message" ]]; then
+    # Введите пароль:
+    ep_message="$(gettext "Enter password:")"
+  fi
+
+  local ep_pwd ep_pwd_c ep_confirm_answer="-no"
+
+  while true; do
+    Message "$ep_message" -s="$DEF_STYLE_ENTER"
+
+    stty -echo
+    Read ep_pwd
+    # stty echo
+    Unblock
+
+    if [[ -n "$ep_pwd" ]]; then
+      # Введите пароль еще раз:
+      Message "$(gettext "Confirm password:")" -s="$DEF_STYLE_ENTER"
+
+      stty -echo
+      Read ep_pwd_c
+      # stty echo
+      Unblock
+
+      if [[ "$ep_pwd" == "$ep_pwd_c" ]]; then
+        # shellcheck disable=SC2034
+        HTAN_PASSWORD="$ep_pwd"
+        Debug "Entered password: %s" "$HTAN_PASSWORD"
+        return 0
+      else
+        Line
+        Message "$(gettext "Password confirmation is incorrect.")" -s="$DEF_STYLE_ERROR"
+        Line
+      fi
+    else
+      if [[ "$ep_optional" = true ]]; then
+        if [[ -n "$ep_warning" ]]; then
+          Message "$ep_warning" -s="$DEF_STYLE_WARNING"
+        fi
+        # Хотите прервать операцию?
+        if Confirm "$(gettext "Do you want to cancel?")" $ep_confirm_answer; then
+          return 1
+        fi
+      fi
+      ep_confirm_answer="-yes"
+    fi
+  done
+}
+
+#======================================================================
+# Prompts for a host.
+#
+# USAGE:
+#   EnterHost [-text="Prompt text"]
+#             [-warning="Warning for empty host"]
+#             [-default="Default host"]
+#             [-optional]
+#
+# GLOBALS:
+#   $HTAN_ENTERED_HOST
+#     Contains the entered host.
+#
+# ARGUMENTS:
+#   First argument without a name
+#   -text="Prompt text"
+#   -t="Prompt text"
+#     Prompt text. Alias: t, $1. Default: "Enter host:".
+#
+#   -warning="Warning for empty host"
+#   -w="Warning for empty host"
+#     Warning, if the host is not entered.
+#     This text will be shown before confirmation cancel entering a host.
+#
+#   -default="example.org"
+#   -d="example.org"
+#     Default host. For example: example.org.
+#
+#   -optional
+#   -o
+#     Specifies that the host is not mandatory.
+#
+# RETURNS:
+#   Returns 0 (true) if host has been entered.
+#   Returns 1 (false) if host has not been entered.
+#======================================================================
+EnterHost()
+{
+  ParseArgs "$@"
+
+  # Введите хост:
+  local eh_message=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[text]}" "${HTAN_PARSE_ARGS_RESULT[t]}" "$HTAN_PARSE_ARGS_RESULT_DEF" "$(gettext "Enter host:")")
+  local eh_optional=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[optional]}" "${HTAN_PARSE_ARGS_RESULT[o]}" "false")
+  local eh_warning=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[warning]}" "${HTAN_PARSE_ARGS_RESULT[w]}")
+  local eh_default=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[default]}" "${HTAN_PARSE_ARGS_RESULT[d]}")
+  local eh_confirm_answer="-no"
+
+  if [[ "$eh_default" == "true" ]]; then
+    eh_default=""
+  fi
+
+  while true; do
+    Message "%s" -a="$eh_message" -s="$DEF_STYLE_ENTER"
+    Read -e -i "$eh_default" HTAN_ENTERED_HOST
+    if [[ -n "$HTAN_ENTERED_HOST" ]]; then
+      if IsValidHost "$HTAN_ENTERED_HOST"; then
+        break
+      fi
+    else
+      if [[ "$eh_optional" = true ]]; then
+        if [[ -n "$eh_warning" ]]; then
+          Message "$eh_warning" -s="$DEF_STYLE_WARNING"
+        fi
+        # Хотите прервать операцию?
+        if Confirm "$(gettext "Do you want to cancel?")" $eh_confirm_answer; then
+          return 1
+        fi
+        eh_confirm_answer="-yes"
+      fi
+    fi
+  done
+}
+
+#======================================================================
+# Prompts for a email address.
+#
+# USAGE:
+#   EnterEmail [-text="Prompt text"]
+#              [-warning="Warning for empty email"]
+#              [-default="Default email"]
+#              [-optional]
+#
+# GLOBALS:
+#   $HTAN_ENTERED_EMAIL
+#     Contains the entered email.
+#
+# ARGUMENTS:
+#   First argument without a name
+#   -text="Prompt text"
+#   -t="Prompt text"
+#     Prompt text. Alias: t, $1. Default: "Enter the recipient address. For example: example@example.org:".
+#
+#   -warning="Warning for empty email"
+#   -w="Warning for empty email"
+#     Warning, if the email address is not entered.
+#     This text will be shown before confirmation cancel entering a email.
+#
+#   -default="example@example.org"
+#   -d="example@example.org"
+#     Default email address. For example: example@example.org.
+#
+#   -optional
+#   -o
+#     Specifies that the email address is not mandatory.
+#
+# RETURNS:
+#   Returns 0 (true) if email address has been entered.
+#   Returns 1 (false) if email address has not been entered.
+#======================================================================
+EnterEmail()
+{
+  ParseArgs "$@"
+
+  local eem_message=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[text]}" "${HTAN_PARSE_ARGS_RESULT[t]}" "$HTAN_PARSE_ARGS_RESULT_DEF" "$(gettext "Enter the recipient address. For example: example@example.org:")")
+  local eem_optional=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[optional]}" "${HTAN_PARSE_ARGS_RESULT[o]}" "false")
+  local eem_warning=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[warning]}" "${HTAN_PARSE_ARGS_RESULT[w]}")
+  local eem_default=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[default]}" "${HTAN_PARSE_ARGS_RESULT[d]}")
+  local eem_confirm_answer="-no"
+
+  if [[ "$eem_default" == "true" ]]; then
+    eem_default=""
+  fi
+
+  while true; do
+    Message "%s" -a="$eem_message" -s="$DEF_STYLE_ENTER"
+    Read -e -i "$eem_default" HTAN_ENTERED_EMAIL
+    if [[ -n "$HTAN_ENTERED_EMAIL" ]]; then
+      if IsValidEmail "$HTAN_ENTERED_EMAIL"; then
+        break
+      # else
+        # Message "$(gettext "This string is not a valid address email.")" -s="$DEF_STYLE_ERROR"
+      fi
+    else
+      if [[ "$eem_optional" = true ]]; then
+        if [[ -n "$eem_warning" ]]; then
+          Message "$eem_warning" -s="$DEF_STYLE_WARNING"
+        fi
+        # Хотите прервать операцию?
+        if Confirm "$(gettext "Do you want to cancel?")" $eem_confirm_answer; then
+          return 1
+        fi
+        eem_confirm_answer="-yes"
+      fi
+    fi
+  done
+}
+
+#======================================================================
+# Displays confirmation and expects answer from user.
+# This extension of the Message method.
+#
+# USAGE:
+#   Confirm [-text="Confirm text"] [-n]
+#           [-s=Text style] [-timeout=Waiting in seconds]
+#           [-yes|-no] [...]
+#
+# ARGUMENTS:
+#   First argument without a name
+#   -text="Confirm text"
+#   -t="Confirm text"
+#     The text of confirmation.
+#
+#   -n
+#     Disable adding newline. Default: false.
+#
+#   -s
+#     The confirmation text style. Default: $DEF_STYLE_QUESTION.
+#
+#   -timeout
+#     Waiting time in seconds. Default: infinite.
+#
+#   -yes
+#     Specifies that default answer is "Yes".
+#
+#   -no
+#     Specifies that default answer is "No".
+#
+#   -a
+#   ...
+#     Other arguments for the message text (-text).
+#
+# RETURNS:
+#   Returns 0 (true) if the user answered "Yes".
+#   Returns 1 (false) if the user answered "No".
+#======================================================================
+Confirm()
+{
+  ParseArgs "$@"
+  local message=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[text]}" "${HTAN_PARSE_ARGS_RESULT[t]}" "$HTAN_PARSE_ARGS_RESULT_DEF")
+  local style="${HTAN_PARSE_ARGS_RESULT[s]:-$DEF_STYLE_QUESTION}"
+  local timeout="${HTAN_PARSE_ARGS_RESULT[timeout]}"
+  local default yesno answer
+  local arguments=("${HTAN_PARSE_ARGS_RESULT_NK[@]/#/-a=}")
+
+  if [[ -n "${HTAN_PARSE_ARGS_RESULT[yes]}" ]]; then
+    # default answer is YES
+    default="Y"
+    yesno="$(gettext "[Y/n]"; echo)" # [Д/н]
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[no]}" ]]; then
+    # default answer is NO
+    default="N"
+    yesno="$(gettext "[y/N]"; echo)" # [д/Н]
+  else
+    yesno="$(gettext "[Y/N]"; echo)" # [Д/Н]
+  fi
+
+  if [[ -n "$message" ]]; then
+    # add yes/no to message text
+    message="$message $yesno "
+    arguments=("$message" "${arguments[@]}")
+  fi
+
+  # arguments=("${arguments[@]}" -s="$style" -n)
+  arguments+=(-s="$style" -n)
+
+  while true; do
+
+    if [[ -n "$message" ]]; then
+      #Message "${args[@]}" -s="$DEF_STYLE_QUESTION" -n
+      Message "${arguments[@]}"
+    fi
+
+    if [[ -z "$timeout" || -z "$default" ]]; then
+      Read answer
+    else
+      Read -t "$timeout" answer
+    fi
+
+    # is user answer or timeout
+    local c_answer_from_user=$?
+    # answer is empty and has default value
+    if [[ -z "$answer" && -n "$default" ]]; then
+      # set default answer
+      answer="$default"
+      # output default answer
+      # todo: change it
+      if [[ -n "$message" && $c_answer_from_user = 0 ]]; then
+        ClearRow
+        Message "${arguments[@]}"
+      fi
+      Style "$DEF_STYLE_DEF_ANSWER"
+      printf "%s\n" "$default"
+      Unstyle "$DEF_STYLE_DEF_ANSWER"
+    else
+      answer="$(ToUpperCase "$answer")"
+    fi
+
+    # check the answer
+    case "$answer" in
+      "Y" | "YES" | "NY" | "1" | "TRUE" | "OK" | "Д" | "ДА" | "Да" | "да" | "д")
+        return 0;;
+      "N" | "NO" | "YN" | "0" | "FALSE" | "Н" | "НЕТ" | "Нет" | "нет" | "н")
+        return 1;;
+      *)
+        # Ожидается ввод символов Y или N!
+        Message "$(gettext "Enter Y or N!")" -s="$DEF_STYLE_ERROR"
+    esac
+
+  done
+}
+
+#======================================================================
+# Displays a message.
+#
+# USAGE:
+#   Message -text="Message text" [-n] [-s=Text style] [args...]
+#
+# ARGUMENTS:
+#   First argument without a name
+#   -text="Message text"
+#   -t="Message text"
+#     The text of message.
+#
+#   -n
+#     Disable adding newline. Default: false.
+#
+#   -s
+#     The style of message text. Default: $DEF_STYLE_TEXT.
+#
+#   -a
+#   ...
+#     Other arguments for the message text (-text).
+#
+# RETURNS:
+#   None
+#======================================================================
+Message()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local format=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[text]}" "${HTAN_PARSE_ARGS_RESULT[t]}" "$HTAN_PARSE_ARGS_RESULT_DEF")
+  local style="${HTAN_PARSE_ARGS_RESULT[s]:-$DEF_STYLE_TEXT}"
+  local nonewline="${HTAN_PARSE_ARGS_RESULT[n]:-false}"
+  local msg_arguments=("${HTAN_PARSE_ARGS_RESULT_NK[@]}")
+
+  Debug "Message
+ -- text=%s
+ -- style=%s
+ -- nonewline=%s
+ -- arguments=%s" "$format" "$style" "$nonewline" "${msg_arguments[@]}"
+
+  if [[ -z "$format" ]]; then
+    # error
+    printf "%s\n" "$(gettext "Error: Text is required.")"
+    exit 1
+  fi
+
+  # output
+  Style "$style"
+  # shellcheck disable=SC2059
+  printf "$format" "${msg_arguments[@]}"
+  Unstyle "$style"
+
+  # newline is allowed
+  if [[ "$nonewline" == false ]]; then 
+    printf "\n"
+  fi
+}
+
+#======================================================================
+# Read a line from standard input. It is only for styles.
+#
+# USAGE:
+#   Read [-ers] [-a aname] [-p prompt] [-t timeout]
+#        [-n nchars] [-d delim] [name...]
+#
+# ARGUMENTS:
+#  -a aname
+#   The words are assigned to sequential indices of the array
+#   variable aname, starting at 0. All elements are removed
+#   from aname before the assignment. 
+#   Other name arguments are ignored.
+#
+#  -d delim
+#   The first character of delim is used to terminate the input line,
+#   rather than newline.
+#
+#  -e
+#   If the standard input is coming from a terminal, Readline is used
+#   to obtain the line.
+#
+#  -n nchars
+#   read returns after reading nchars characters rather
+#   than waiting for a complete line of input.
+#
+#  -p prompt
+#   Display prompt, without a trailing newline, before attempting
+#   to read any input. The prompt is displayed only if input
+#   is coming from a terminal.
+#
+#  -r
+#   If this option is given, backslash does not act
+#   as an escape character.
+#   The backslash is considered to be part of the line. In particular,
+#   a backslash-newline pair can not be used as a line continuation. 
+#
+#  -s
+#   Silent mode. If input is coming from a terminal, characters
+#   are not echoed.
+#
+#  -t timeout
+#   Cause read to time out and return failure if a complete line
+#   of input is not read within timeout seconds. This option has no
+#   effect if read is not reading input from the terminal or a pipe.
+#
+# RETURNS:
+#   None
+#======================================================================
+Read()
+{
+  # read
+  Style "$DEF_STYLE_INPUT"
+  read "$@"
+  local r_result=$?
+  Unstyle "$DEF_STYLE_INPUT"
+  return $r_result
+}
+
+#======================================================================
+# Displays message and waits for pressing any key.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+PressAnyKey()
+{
+  Style "$STYLE_BLACK$STYLE_BGGRAY"
+  read -sn 1 -p "$(gettext "Press any key to continue...")"
+  echo
+  Unstyle "$STYLE_BLACK$STYLE_BGGRAY"
+}
+
+#======================================================================
+# Displays [ OK ] on the right side of the screen.
+# This extension of the Label method.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+OK()
+{
+  Label "$(gettext "[ OK ]")" -s="$DEF_STYLE_SUCCESS"
+}
+
+#======================================================================
+# Displays [ Success ] on the right side of the screen.
+# This extension of the Label method.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+Success()
+{
+  Label "$(gettext "[ Success ]")" -s="$DEF_STYLE_SUCCESS"
+}
+
+#======================================================================
+# Displays [ Fail ] on the right side of the screen.
+# This extension of the Label method.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+Fail()
+{
+  Label "$(gettext "[ Fail ]")" -s="$DEF_STYLE_FAIL"
+}
+
+#======================================================================
+# Displays [ No found ] on the right side of the screen.
+# This extension of the Label method.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+NoFound()
+{
+  # [ Отсутствует ]
+  Label "$(gettext "[ No found ]")" -s="$DEF_STYLE_FAIL"
+}
+
+#======================================================================
+# Displays [ Cancelled ] on the right side of the screen.
+# This extension of the Label method.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+Cancelled()
+{
+  # [ Отменено ]
+  Label "$(gettext "[ Cancelled ]")" -s="$DEF_STYLE_CANCELLED"
+}
+
+#======================================================================
+# Displays label on the right side of the screen.
+#
+# USAGE:
+#   Label -text="[ label ]" [-n] [-s=label style]
+#
+# ARGUMENTS:
+#   First argument without a name
+#   -text="Label text"
+#   -t="Label text"
+#     The label text.
+#
+#   -n
+#     Disable adding newline. Default: false.
+#
+#   -s
+#     The style of label text. Default: $DEF_STYLE_TEXT.
+#
+# RETURNS:
+#   None
+#======================================================================
+Label()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local lbl_message=$(FirstNoEmpty "${HTAN_PARSE_ARGS_RESULT[text]}" "${HTAN_PARSE_ARGS_RESULT[t]}" "$HTAN_PARSE_ARGS_RESULT_DEF")
+  local lbl_style="${HTAN_PARSE_ARGS_RESULT[s]:-$DEF_STYLE_TEXT}"
+  local lbl_nonewline="${HTAN_PARSE_ARGS_RESULT[n]:-false}"
+
+  # check for text
+  if [[ -z "$lbl_message" ]]; then
+    # no label text, throw exception
+    Error "$(gettext "Error: Label text is required.")"
+  fi
+
+  # get text length
+  local lbl_len=$((${#lbl_message}-1))
+
+  # output
+  Style "$lbl_style"
+  # shellcheck disable=SC2046
+  printf "%b" "$(tput hpa $(tput cols))$(tput cub $lbl_len)$lbl_message"
+  if [[ "$lbl_nonewline" == false ]]; then
+    printf "\n"; 
+  fi
+  Unstyle "$lbl_style"
+}
+
+#======================================================================
+# Includes the specifed tools (files from htan/tools folder).
+#
+# USAGE:
+#   IncludeTool tool1 tool2 tool3 ...
+#
+# ARGUMENTS:
+#   List of tools space separated.
+#
+# RETURNS:
+#   None
+#======================================================================
+IncludeTool()
+{
+  local iti itcount=$#
+  for (( iti=1; iti<=itcount; iti++ )); do
+    # search in included tools
+    if [[ ! " ${HTAN_INCLUDED_TOOLS[@]} " == *" $1 "* ]]; then
+      # including tool
+      Include "$HTAN_PATH_TOOLS/$1"
+    fi
+    shift
+  done
+}
+
+#======================================================================
+# Includes the specifed files.
+# Displays information about the process and results.
+#
+# USAGE:
+#   Include filepath
+#
+# ARGUMENTS:
+#   $1: File path to include.
+#
+# RETURNS:
+#   None
+#======================================================================
+Include()
+{
+  if [[ -z "$1" ]]; then
+    Error "File path is requred!"
+  fi
+
+  local file_name=$(basename "$1")
+  # "Подключение $1 …"
+  Message "$(gettext "Including %s …")" "$file_name" -s="$DEF_STYLE_INCLUDE" -n
+  {
+    source "$1" && OK
+  } || {
+    Fail
+    # Не удалось подключить $1
+    Error "$(gettext "Failed to include %s.")" "$file_name"
+  }
+}
+
+#======================================================================
+# Starts the background command and waits completion.
+#
+# USAGE:
+#   Execute -c="command" [-m="Command description"]
+#           [-sp=style of processing status]
+#           [-sc=style of completed status]
+#           [-a=arg...|...]
+#
+# ARGUMENTS:
+#   First argument without a name
+#   -c="command"
+#     The text of command that will be executed.
+#
+#   -m="Command description"
+#     The command decription.
+#
+#   -sp
+#     The description style of processing command.
+#     Default: $DEF_STYLE_ACTION_PROC.
+#
+#   -sc
+#     The description style of completed command.
+#     Default: $DEF_STYLE_ACTION_COMP.
+#
+#   -lr
+#     Print the result: OK or Fail.
+#     Used only if description (-m) is not empty.
+#
+#   -a
+#   ...
+#     Other arguments for the description text (-m).
+#
+# RETURNS:
+#   Returns 0 (true) if the command was successful.
+#   Returns 1 (false) if the command is failed.
+#======================================================================
+Execute()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local ex_cmd="${HTAN_PARSE_ARGS_RESULT[c]:-${HTAN_PARSE_ARGS_RESULT_DEF}}"
+  local ex_message="${HTAN_PARSE_ARGS_RESULT[m]:-${HTAN_PARSE_ARGS_RESULT[msg]:-${HTAN_PARSE_ARGS_RESULT[message]}}}"
+  local style_on="${HTAN_PARSE_ARGS_RESULT[sp]:-$DEF_STYLE_ACTION_PROC}"
+  local style_off="${HTAN_PARSE_ARGS_RESULT[sc]:-$DEF_STYLE_ACTION_COMP}"
+  local ex_show_result="${HTAN_PARSE_ARGS_RESULT[lr]:-false}"
+  local ex_arguments=("${HTAN_PARSE_ARGS_RESULT_NK[@]}")
+
+  Debug "Execute 
+ -- c=%s
+ -- m=%s
+ -- sp=%s
+ -- sc=%s
+ -- lr=%s
+ -- args=%s" "$ex_cmd" "$ex_message" "$style_on" "$style_off" "$ex_show_result" "${ex_arguments[@]}"
+
+  if [[ -z "$ex_cmd" ]]; then
+    wait
+    return
+  fi
+
+  local has_sudo=false
+  if dpkg-query -s "sudo" 2> /dev/null | grep -q "ok installed"; then has_sudo=true; fi
+
+  if [[ "$has_sudo" == false && "$USER" != "root" ]]; then
+    # Недостаточно прав для выполнения операции. Попробуйте выполнить скрипт от имени суперпользователя.
+    Error "$(gettext "Insufficient permissions to execute the command. Try to run the script as root.")"
+  fi
+
+  # message
+  if [[ -n "$ex_message" ]]; then
+    ex_arguments=("$ex_message" "${ex_arguments[@]}" -n)
+    Message "${ex_arguments[@]}" -s="$style_on"
+  fi
+
+  local progress="-\\|/"
+  local current=0 max=${#progress}
+  local waiting
+
+  # I do not like it, but other solutions I have not found...
+  # create a temp file for results
+  local execution_result_file=$(mktemp)
+  # modify the command to be processed result (OK|Fail) and to start a separate thread (&)
+  ex_cmd="(($ex_cmd) && "
+  if [[ -n "$ex_message" ]] || [[ -z "$ex_message" && "$ex_show_result" == true ]]; then
+    ex_cmd+="(OK; printf '0' > $execution_result_file) || (Fail; printf '1' > $execution_result_file)) &"
+  else
+    ex_cmd+="(printf '0' > $execution_result_file) || (printf '1' > $execution_result_file)) &"
+  fi
+  # start process
+  eval "$ex_cmd"
+  # get process id
+  local pid=$!
+
+  # check process id
+  if [[ -z $pid ]]; then
+    return
+  fi
+
+  stty -echo
+  sleep 0.35
+
+  # process is alive?
+  if [[ "$has_sudo" == true ]]; then
+    # shellcheck disable=SC2086
+    sudo kill -0 $pid > /dev/null 2>&1
+  else
+    su root -c "kill -0 $pid" > /dev/null 2>&1
+  fi
+  waiting=$?
+
+  #wait $pid
+
+  # progress
+  while ((waiting == 0)); do
+    # process is alive?
+    if [[ "$has_sudo" == true ]]; then
+      # shellcheck disable=SC2086
+      sudo kill -0 $pid > /dev/null 2>&1
+    else
+      su root -c "kill -0 $pid" > /dev/null 2>&1
+    fi
+    waiting=$? #$(ps --pid $pid &>/dev/null)
+    if ((waiting != 0)); then
+      break;
+    fi
+    # loader
+    Label "[${progress:$current:1}] " -n -s="$DEF_STYLE_WAITING"
+    ((current++))
+    if (( current >= max )); then 
+      current=0;
+    fi
+    #sleep 0.35
+
+    # turn off keyboard input
+    read -t 0.35 -n 1 key > /dev/null
+  done
+
+  # get result from the temp file
+  local ex_result=1
+  if grep -q "0" "$execution_result_file"; then
+    ex_result=0
+  fi
+
+  # remove the temp file
+  if [[ "$has_sudo" == true ]]; then
+    sudo rm "$execution_result_file" > /dev/null 2>&1
+  else
+    su root -c "rm $execution_result_file" > /dev/null 2>&1
+  fi
+
+  # message
+  if [[ "$ex_message" != "" && "$style_on" != "$style_off" ]]; then
+    ClearRow
+    Message "${ex_arguments[@]}" -s="$style_off"
+    if [[ $ex_result == 0 ]]; then 
+      OK
+    else
+      Fail
+    fi
+  fi
+
+  # stty echo
+  Unblock
+
+  Debug "Execution result: %s" "$ex_result"
+
+  return $ex_result
+}
+
+#======================================================================
+# Asks and displays IP address of the server.
+#
+# GLOBALS:
+#   $HTAN_SERVER_IP
+#     Contains specified IP of the server.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   Displays specified IP of the server.
+#======================================================================
+GetServerIP()
+{
+  if [[ -z "$HTAN_SERVER_IP" || "$1" == true ]]; then
+    if ip -4 address show 'eth0' > /dev/null 2>&1; then
+      # parse ip
+      HTAN_SERVER_IP="$(ip -4 address show 'eth0' | grep 'inet' | sed 's/.*inet \([0-9\.]\+\).*/\1/')"
+    else
+      # get ip from externa server
+      HTAN_SERVER_IP="$(wget http://ipecho.net/plain -O - -q; echo)"
+    fi
+    # confirmation
+    while true; do
+      # Введите IP данного сервера:
+      Message "$(gettext "Enter the IP of the server:")" -s="$DEF_STYLE_QUESTION"
+
+      Read -e -i "$HTAN_SERVER_IP" HTAN_SERVER_IP
+
+      if [[ -n "$HTAN_SERVER_IP" ]]; then
+        # Message "Адрес $HTAN_SERVER_IP будет использован при конфигурации некоторых компонентов."
+        # Message "Неправильно указанный адрес может привести к проблемам в работе этих компонентов."
+        # Адрес %s правильный?
+        if Confirm "$(gettext "IP %s is correct?")" -a="$HTAN_SERVER_IP" -yes; then
+          break
+        fi
+      else
+        # Необходимо указать IP-адрес этого сервера!
+        Message "$(gettext "IP-address is required!")" -s="$DEF_STYLE_ERROR"
+      fi
+    done
+  fi
+
+  echo "$HTAN_SERVER_IP"
+}
+
+#======================================================================
+# Parses arguments.
+#
+# USAGE:
+#   ParseArgs "$@"
+#
+# GLOBALS:
+#   $HTAN_PARSE_ARGS_RESULT_DEF
+#     The default value. First argument without key (name).
+#
+#   $HTAN_PARSE_ARGS_RESULT
+#     The collection of key-value containing the found arguments.
+#
+#   $HTAN_PARSE_ARGS_RESULT_NK
+#     The collection arguments without keys (names).
+#
+# ARGUMENTS:
+#   Any
+#
+# RETURNS:
+#   None
+#======================================================================
+ParseArgs()
+{
+  if [[ "$HTAN_ONE_SKIP_PARSE_ARGS" == true ]]; then
+    Debug "ParseArgs skipped."
+    HTAN_ONE_SKIP_PARSE_ARGS=false
+    return
+  fi
+
+  Debug "ParseArgs $#: $@"
+
+  # clear prev results
+  HTAN_PARSE_ARGS_RESULT=()
+  HTAN_PARSE_ARGS_RESULT_NK=()
+  HTAN_PARSE_ARGS_RESULT_DEF=""
+
+  if (( $# < 0 )); then
+    # Error "$(gettext "Parametes is required.")"
+    return
+  fi
+
+  local pa_key pa_value pa_debug=false pa_keep_empty=false
+
+  # read arguments
+  local pa_i pa_count=$#
+  for (( pa_i=1; pa_i<=pa_count; pa_i++ )); do
+    if printf "%s" "$1" | grep -qP "^(-{1,2})([\d\w\-]+)((\=.+)|(.?))$"; then
+      pa_key="$(printf "%s" "$1" | cut -f1 -d'=')"
+      pa_value="${1:${#pa_key}+1}" #$(printf "%s" "$1" | cut -f2 -d'=')
+      # remove excess hyphens
+      if [[ "${pa_key:1:1}" == "-" ]]; then
+        pa_key="${pa_key:1}"
+      fi
+      pa_key="${pa_key:1}"
+      # is parameter without key
+      if [[ "$pa_key" == "a" ]]; then
+        HTAN_PARSE_ARGS_RESULT_NK+=("$pa_value")
+        shift
+        continue
+      fi
+      # other parameters
+      if [[ -z "$pa_value" && "$pa_keep_empty" == false ]]; then pa_value=true; fi # || "$pa_value" == "$pa_key"
+      #HTAN_PARSE_ARGS_RESULT=("${HTAN_PARSE_ARGS_RESULT[@]}" [${pa_key:1}]="$pa_value")
+      HTAN_PARSE_ARGS_RESULT["$pa_key"]="$pa_value"
+
+      if [[ "$pa_key" == "showall" && "$pa_value" == "true" ]]; then
+        pa_debug=true
+      fi
+
+      if [[ "$pa_key" == "keepempty" && "$pa_value" == "true" ]]; then
+        pa_keep_empty=true
+      fi
+    else
+      if [[ -z "$HTAN_PARSE_ARGS_RESULT_DEF" ]]; then
+        # default parameter
+        HTAN_PARSE_ARGS_RESULT_DEF="$1"
+      else
+        # parameters without keys
+        HTAN_PARSE_ARGS_RESULT_NK+=("$1")
+      fi
+    fi
+    shift
+  done
+
+  if $pa_debug; then
+    # Line "~" "$DEF_STYLE_DEBUG"
+    Style "$DEF_STYLE_DEBUG"
+    printf "HTAN_PARSE_ARGS_RESULT_DEF: %s\n" "$HTAN_PARSE_ARGS_RESULT_DEF"
+    printf "HTAN_PARSE_ARGS_RESULT_NK (%s):\n" "${#HTAN_PARSE_ARGS_RESULT_NK[@]}"
+    for pa_itm in "${HTAN_PARSE_ARGS_RESULT_NK[@]}"; do
+      printf "item : %s\n" "$pa_itm"
+    done
+    printf "HTAN_PARSE_ARGS_RESULT (%s):\n" "${#HTAN_PARSE_ARGS_RESULT[@]}"
+    for pa_k in "${!HTAN_PARSE_ARGS_RESULT[@]}"; do
+      printf "%s=%s\n" "$pa_k" "${HTAN_PARSE_ARGS_RESULT[$pa_k]}"
+    done
+    Unstyle "$DEF_STYLE_DEBUG"
+    # Line "~" "$DEF_STYLE_DEBUG"
+  fi
+}
+
+#======================================================================
+# Returns first non-empty argument.
+#
+# USAGE:
+#   FirstNoEmpty "$@"
+#
+# ARGUMENTS:
+#   Any
+#
+# RETURNS:
+#   Displays first non-empty argument.
+#======================================================================
+FirstNoEmpty()
+{
+  local fne_i fne_count=$#
+  for (( fne_i=1; fne_i<=fne_count; fne_i++ )); do
+    if [[ -n "$1" ]]; then
+      echo "$1"
+      return
+    fi
+    shift
+  done
+}
+
+#======================================================================
+# Displays last records of the log file.
+#
+# USAGE:
+#   ShowLastLogRecords [-rows=N] [-s=Style]
+#
+# ARGUMENTS:
+#   -rows=N
+#   -r=N
+#     Rows count. Default: 3.
+#
+#   -s=Text style
+#     Style of the records text. Default: $DEF_STYLE_TEXT.
+#
+# RETURNS:
+#   None
+#======================================================================
+ShowLastLogRecords()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local rows="${HTAN_PARSE_ARGS_RESULT[r]:-${HTAN_PARSE_ARGS_RESULT[rows]:-3}}"
+  local style="${HTAN_PARSE_ARGS_RESULT[s]:-$DEF_STYLE_TEXT}"
+  Message "$(tail -$rows "$HTAN_LOG")" -s="$style"
+}
+
+#======================================================================
+# Appends record to the log file.
+#
+# USAGE:
+#   Log "record text"
+#
+# ARGUMENTS:
+#   $1: The text to write.
+#
+# RETURNS:
+#   None
+#======================================================================
+Log()
+{
+  printf "%s\n" "$1" >> "$HTAN_LOG"
+}
+
+#======================================================================
+# Appends record to the server info file.
+#
+# USAGE:
+#   ServerInfo "text"
+#
+# ARGUMENTS:
+#   $1: The text to write.
+#
+# RETURNS:
+#   None
+#======================================================================
+ServerInfo()
+{
+  printf "%b" "$1" >> "$HTAN_SERVER_INFO"
+}
+
+#======================================================================
+# Converts all the alphabetic characters in a string to lowercase.
+#
+# USAGE:
+#   ToLowerCase "TEXT"
+#
+# ARGUMENTS:
+#   $1: The string for processing.
+#
+# RETURNS:
+#   Displays string in lowercase.
+#======================================================================
+ToLowerCase()
+{
+  echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+#======================================================================
+# Converts all the alphabetic characters in a string to uppercase.
+#
+# USAGE:
+#   ToUpperCase "text"
+#
+# ARGUMENTS:
+#   $1: The string for processing.
+#
+# RETURNS:
+#   Displays string in uppercase.
+#======================================================================
+ToUpperCase()
+{
+  echo "$1" | tr '[:lower:]' '[:upper:]'
+}
+
+#======================================================================
+# Removes all leading and trailing space characters from the string.
+#
+# USAGE:
+#   Trim " text "
+#
+# ARGUMENTS:
+#   $1: The string for processing.
+#
+# RETURNS:
+#   Displays string that remains after all space characters
+#   are removed from the start and end of the current string.
+#======================================================================
+Trim() 
+{
+  local trim_value="$*"
+  trim_value="${trim_value#"${trim_value%%[![:space:]]*}"}" # ltrim
+  trim_value="${trim_value%"${trim_value##*[![:space:]]}"}" # rtrim
+  echo "$trim_value"
+}
+
+#======================================================================
+# Validates the host.
+#
+# USAGE:
+#   IsValidHost "example.org" && echo "Valid" || echo "No valid"
+#
+# ARGUMENTS:
+#   $1: The value to validate.
+#
+# RETURNS:
+#   0 (true) if host name validation succeeded; otherwise, 1 (false).
+#======================================================================
+IsValidHost()
+{
+  if [[ ! "$1" =~ ^([\._-]+)(.+)$ ]] && [[ ! "$1" =~ ^(.+)(\.)$ ]] && [[ "$1" =~ ^[0-9A-Za-z\._-]+$ ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+#======================================================================
+# Validates the email adderss.
+#
+# USAGE:
+#   IsValidEmail "example@example.org" && echo "OK" || echo "Fail"
+#
+# ARGUMENTS:
+#   $1: The value to validate.
+#
+# RETURNS:
+#   0 (true) if adderss validation succeeded; otherwise, 1 (false).
+#======================================================================
+IsValidEmail()
+{
+  if [[ ! "$1" =~ ^([\.\@]+)(.+)$ ]] && [[ ! "$1" =~ ^(.+)([\@\.]+)$ ]] && [[ "$1" =~ ^([0-9A-Za-z\.\_\!\#\$\%\^\&\*\+\=\/\`\{\}\~\-]+)@([0-9A-Za-z\.\_\-]+)\.([0-9A-Za-z]+)$ ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+#======================================================================
+# Validates the port number.
+#
+# USAGE:
+#   IsValidPort 123 && echo "Valid" || echo "No valid"
+#
+# ARGUMENTS:
+#   $1: The value to validate.
+#
+# RETURNS:
+#   0 (true) if port number validation succeeded; otherwise, 1 (false).
+#======================================================================
+IsValidPort()
+{
+  if [[ -n "$1" && "$1" =~ ^[0-9]+$ ]] && (( $1 >= 1 && $1 <= 65535 )); then
+    return 0
+  else
+    return 1
+  fi
+}
+
+ExtractHTANScriptKey()
+{
+  if [[ -z "$1" ]]; then
+    Error "$(gettext "Key is required.")"
+  fi
+
+  if [[ ! -f "$2" || ! -r "$2" ]]; then
+    Error "$(gettext "File '%s' not found.")" "$2"
+  fi
+
+  local result="$(grep -P -A1 "^([\#\s]+)$1:" $2 | tail -n1)"
+  
+  echo "${result#"${result%%[!#|[:space:]]*}"}"
+}
+
+ExtractHTANScriptKeyMultiline()
+{
+  if [[ -z "$1" ]]; then
+    Error "$(gettext "Key is required.")"
+  fi
+
+  if [[ ! -f "$2" || ! -r "$2" ]]; then
+    Error "$(gettext "File '%s' not found.")" "$2"
+  fi
+
+  local key="$1"
+  local path="$2"
+  local read_key line
+  local no_comment=0
+
+  local name="${path##*/}"
+  local nsize=${#name}
+  ((nsize++))
+
+  # read file
+  while IFS=':' read -r read_key; do
+    # checking key
+    if [[ -z "${read_key:0:1}" || "${read_key:0:1}" != "#" ]]; then
+      ((no_comment++))
+      if (( no_comment > 5 )); then
+        break;
+      else
+        continue
+      fi
+    fi
+
+    read_key="$(Trim "${read_key:1}")"
+    if [[ "$read_key" != "$key" ]]; then
+      continue
+    fi
+
+    local first=true opened=false
+    while IFS='' read -r line; do
+      if echo "$line" | grep -qP "^\#{1,}\s*([A-Z]+):\s*$"; then
+        break;
+      fi
+
+      if [[ "$first" == false ]]; then
+        printf "%*s" "$nsize" | tr " " " "
+      fi
+
+      line="${line#"${line%%[!#|[:space:]]*}"}"
+
+      if [[ "$opened" == true ]]; then
+        if [[ "$line" == "]" ]]; then
+          opened=false
+        else
+          printf "  "
+        fi
+      else
+        if [[ "$line" == "[" ]]; then
+          opened=true
+        fi
+      fi
+
+      first=false
+      
+      printf "%s\n" "$line"
+    done
+  done < "$path"
+}
+
+# check availability of the necessary directories
+if [[ ! -d "$HTAN_PATH_ROOT" || ! -d "$HTAN_PATH_DATA" || ! -d "$HTAN_PATH_TOOLS" || ! -d "$HTAN_PATH_INSTALLERS" ]]; then
+  # Структура каталогов HTAN повреждена!
+  Error "$(gettext "The directory structure of HTAN is damaged!")"
+fi
+
+# check bash version
+if (( ${BASH_VERSION%%[^0-9]*} < 4 )); then
+  # Требуется версия BASH не меньше 4.0!
+  Error "$(gettext "Required BASH v4.0 or later!")"
+fi
+
+#----------------------------------------------------------------------
+# Parse arguments
+#----------------------------------------------------------------------
+ParseArgs "$@"
+
+# main user name
+declare HTAN_USER="${HTAN_PARSE_ARGS_RESULT[u]:-${HTAN_PARSE_ARGS_RESULT[user]:-$USER}}"
+# is restarted as root
+declare HTAN_ROOT_LOGIN="${HTAN_PARSE_ARGS_RESULT[root]:-false}"
+# debug mode
+HTAN_DEBUG="${HTAN_PARSE_ARGS_RESULT[debug]:-false}"
+# only tested versions
+HTAN_TESTED="${HTAN_PARSE_ARGS_RESULT[tested]:-false}"
+# disable styles
+HTAN_UNSTYLED="${HTAN_PARSE_ARGS_RESULT[nocolor]:-false}"
+# log file path
+HTAN_LOG="${HTAN_PARSE_ARGS_RESULT[log]:-/var/log/htan/installer.log}" # $HTAN_PATH_ROOT/htan.log
+# file for server info
+HTAN_SERVER_INFO="${HTAN_PARSE_ARGS_RESULT[output-server-info]:-$HTAN_PATH_ROOT/server.info}"
+
+# set language
+declare HTAN_LANG="${HTAN_PARSE_ARGS_RESULT[lang]/-/_}"
+if [[ -n "$HTAN_LANG" ]]; then
+  if [[ -d "$TEXTDOMAINDIR/$HTAN_LANG" ]]; then
+    # found resources for a specified language, use it
+    LANGUAGE="$HTAN_LANG"
+  else
+    # english - default
+    if [[ "${HTAN_LANG:0:2}" != "en" ]]; then
+      # not found - clear the desired language
+      HTAN_LANG=""
+    fi
+  fi
+fi
+
+# detect language
+system_lang="${LC_ALL:-${LC_MESSAGES:-$LANG}}"
+if [[ -z "$HTAN_LANG" ]]; then
+  if [[ -d "$TEXTDOMAINDIR/$current_lang" ]]; then
+    LANGUAGE="$current_lang"
+  elif [[ -d "$TEXTDOMAINDIR/${current_lang:0:2}" ]]; then
+    LANGUAGE="${current_lang:0:2}"
+  fi
+else
+  LANGUAGE="$HTAN_LANG"
+fi
+
+export LANGUAGE
+# // --
+
+# check log path
+if [[ ! -d "$(dirname "$HTAN_LOG")" ]]; then
+  mkdir -p "$(dirname "$HTAN_LOG")"
+fi
+
+#----------------------------------------------------------------------
+# Self-script
+#----------------------------------------------------------------------
+if \
+[[ \
+  "${0##*/}" == "common" && \
+  -z "${HTAN_PARSE_ARGS_RESULT[version]}" && \
+  -z "${HTAN_PARSE_ARGS_RESULT[v]}" && \
+  -z "${HTAN_PARSE_ARGS_RESULT[help]}" && \
+  -z "${HTAN_PARSE_ARGS_RESULT[h]}"
+]]; then
+  HTAN_ONE_SKIP_PARSE_ARGS=true
+
+  if [[ -n "${HTAN_PARSE_ARGS_RESULT[version]}" || -n "${HTAN_PARSE_ARGS_RESULT[v]}" ]]; then
+    HTAN_ONE_SKIP_PARSE_ARGS=false
+    Message "HTAN Common Tool Version: %s (%s)" "$(ExtractHTANScriptVersion "$0")" "$(ExtractHTANScriptRevision "$0")"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[help]}" || -n "${HTAN_PARSE_ARGS_RESULT[h]}" ]]; then
+    HTAN_ONE_SKIP_PARSE_ARGS=false
+    Message "$(ExtractHTANScriptUsage "$0")"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[message]}" ]]; then
+    HTAN_PARSE_ARGS_RESULT[text]="${HTAN_PARSE_ARGS_RESULT[message]}"
+    unset HTAN_PARSE_ARGS_RESULT[message]
+    Message
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[confirm]}" ]]; then
+    HTAN_PARSE_ARGS_RESULT[text]="${HTAN_PARSE_ARGS_RESULT[confirm]}"
+    unset HTAN_PARSE_ARGS_RESULT[confirm]
+    Confirm
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[error]}" ]]; then
+    HTAN_PARSE_ARGS_RESULT[text]="${HTAN_PARSE_ARGS_RESULT[error]}"
+    unset HTAN_PARSE_ARGS_RESULT[error]
+    Error
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[ok]}" ]]; then
+    OK
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[success]}" ]]; then
+    Success
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[fail]}" ]]; then
+    Fail
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[nofound]}" ]]; then
+    NoFound
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[cancelled]}" ]]; then
+    Cancelled
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[label]}" ]]; then
+    HTAN_PARSE_ARGS_RESULT[text]="${HTAN_PARSE_ARGS_RESULT[label]}"
+    unset HTAN_PARSE_ARGS_RESULT[label]
+    Label
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[command]}" ]]; then
+    HTAN_PARSE_ARGS_RESULT[c]="${HTAN_PARSE_ARGS_RESULT[command]}"
+    unset HTAN_PARSE_ARGS_RESULT[command]
+    Execute
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[cmd]}" ]]; then
+    HTAN_PARSE_ARGS_RESULT[c]="${HTAN_PARSE_ARGS_RESULT[cmd]}"
+    unset HTAN_PARSE_ARGS_RESULT[cmd]
+    Execute
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[execute]}" ]]; then
+    HTAN_PARSE_ARGS_RESULT[c]="${HTAN_PARSE_ARGS_RESULT[execute]}"
+    unset HTAN_PARSE_ARGS_RESULT[execute]
+    Execute
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[trim]}" ]]; then
+    Trim "${HTAN_PARSE_ARGS_RESULT[trim]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[tolower]}" ]]; then
+    ToLowerCase "${HTAN_PARSE_ARGS_RESULT[tolower]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[toupper]}" ]]; then
+    ToUpperCase "${HTAN_PARSE_ARGS_RESULT[toupper]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[ishost]}" ]]; then
+    IsValidHost "${HTAN_PARSE_ARGS_RESULT[ishost]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[ismail]}" ]]; then
+    IsValidEmail "${HTAN_PARSE_ARGS_RESULT[ismail]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[isemail]}" ]]; then
+    IsValidEmail "${HTAN_PARSE_ARGS_RESULT[isemail]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[isport]}" ]]; then
+    IsValidPort "${HTAN_PARSE_ARGS_RESULT[isport]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[line]}" ]]; then
+    Line "${HTAN_PARSE_ARGS_RESULT[line]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[anykey]}" ]]; then
+    PressAnyKey
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[pressanykey]}" ]]; then
+    PressAnyKey
+  fi
+
+  exit $?
+else
+  # common parameters for other files
+  if [[ -n "${HTAN_PARSE_ARGS_RESULT[version]}" || -n "${HTAN_PARSE_ARGS_RESULT[v]}" ]]; then
+    script_name="$(ExtractHTANScriptKey "NAME" "$0")"
+    if [[ -z "$script_name" ]]; then
+      script_name="${0##*/}"
+    fi
+    Message "%s Version: %s (%s)" "$script_name" "$(ExtractHTANScriptKey "VERSION" "$0")" "$(ExtractHTANScriptKey "REVISION" "$0")"
+    exit 0
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[help]}" || -n "${HTAN_PARSE_ARGS_RESULT[h]}" ]]; then
+    Message "$(ExtractHTANScriptKeyMultiline "USAGE" "$0")"
+    exit 0
+  fi
+fi
+
+#----------------------------------------------------------------------
+# Debug info
+#----------------------------------------------------------------------
+if [[ "$HTAN_DEBUG" = true ]]; then
+  printf "\n"
+  Debug "Debug mode
+ -- SYS_LANG=%s
+ -- HTAN_LANG=%s
+ -- LANGUAGE=%s
+ -- TEXTDOMAIN=%s
+ -- TEXTDOMAINDIR=%s
+ -- -------------------------------------------------------------------
+ -- file=%s
+ -- root=%s
+ -- user=%s
+ -- tested=%s
+ -- log=%s
+ -- arguments=%s" \
+ "$system_lang" "$HTAN_LANG" \
+ "$LANGUAGE" "$TEXTDOMAIN" "$TEXTDOMAINDIR" \
+ "${0##*/}" \
+ "$HTAN_ROOT_LOGIN" "$HTAN_USER" \
+ "$HTAN_TESTED" "$HTAN_LOG" "${arguments[@]}"
+fi

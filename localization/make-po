@@ -1,0 +1,65 @@
+#!/bin/bash
+
+#======================================================================
+# Creates or updates the htan.po for localization.
+#
+# USAGE:
+#   make-po [lang]
+#
+# NAME:
+#   PO-file maker
+#
+# REQUIREMENTS:
+#   gettext, xgettext
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0
+#
+# CREATED:
+#   14.01.2016
+#
+# REVISION:
+#   14.01.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#======================================================================
+
+lang="$1"
+path="$(cd "$(dirname "$0")" && pwd)"
+
+if [[ -n "$lang" ]]; then
+  path="$path/$lang/LC_MESSAGES"
+  if [[ ! -d "$path" ]]; then
+    mkdir --parents "$path"
+  fi
+fi
+
+cd "$path"
+
+join_existing=""
+
+if [[ -f htan.po ]]; then
+  join_existing="--join-existing"
+fi
+
+xgettext --files-from=list --default-domain=htan \
+$join_existing --language=Shell --no-wrap \
+--output=htan.po --from-code=utf-8 \
+--copyright-holder="Aleksey Nemiro" \
+--package-name="htan" \
+--package-version="1.0" \
+--msgid-bugs-address=aleksey@kbyte.ru && \
+printf "htan.po is successfully created.\n" || \
+printf "Could not create htan.po.\n"

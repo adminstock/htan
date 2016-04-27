@@ -1,0 +1,290 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of Subversion.
+#
+# USAGE:
+#   svn [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   14.01.2016
+#
+# REVISION:
+#   14.01.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Subversion
+#
+# HTAN_CATEGORY:
+#   Revision control
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "xinetd" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "xinetd" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package config service web svn
+
+InstallSvn()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=1.8.10"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "Subversion" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  Message "$(gettext "Apache Subversion (often abbreviated SVN, after the command name svn) is a software versioning and revision control system.")"
+  Line
+
+  local svn_exists=$(PackageExists subversion && echo true || echo false)
+
+  if [[ $svn_exists == true ]]; then
+    # На сервере обнаружен пакет %s.
+    Message "$(gettext "On this server is detected the package %s.")" "Subversion"
+    Line
+    # Хотите провести конфигурацию?
+    if ! Confirm "$(gettext "Would you like to configure?")" -yes; then
+      Line
+      # Операция прервана пользователем.
+      Message "$(gettext "Operation canceled by the user.")"
+      return
+    fi
+  else
+    if ! PackageInstall subversion -confirm=true -title="Apache Subversion" $tested; then
+      return
+    fi
+  fi
+
+  Line
+
+  # install libapache2-svn
+  PackageInstall libapache2-svn -confirm=false
+
+  Line
+
+  # enbale dav module
+  if ! $(sudo ls /etc/apache2/mods-enabled/ 2> /dev/null | grep -q "dav.load"); then
+    Execute -c="sudo a2enmod dav >> $HTAN_LOG 2>&1" -m="$(gettext "Enabling of the module %s …")" -a="dav" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+ 
+  # enbale dav_svn module
+  if ! $(sudo ls /etc/apache2/mods-enabled/ 2> /dev/null | grep -q "dav_svn.load"); then
+    Execute -c="sudo a2enmod dav_svn >> $HTAN_LOG 2>&1" -m="$(gettext "Enabling of the module %s …")" -a="dav_svn" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  # folder for repositories
+  local repositories=/var/svn/
+
+  # create group for subversion
+  # if ! $(sudo id -g "subversion" > /dev/null 2>&1); then 
+  #  Execute -c="sudo groupadd subversion >> $HTAN_LOG 2>&1" -m="$(gettext "Creating group %s …")" -a="subversion" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  #  Line
+  # fi
+
+  # create folder for repositories
+  if [[ ! -d "$repositories" ]]; then
+    Execute -c="sudo mkdir -p $repositories >> $HTAN_LOG 2>&1" -m="$(gettext "Creating a folder for the repositories …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  # owner and permissions
+  sudo chown -R root:www-data "$repositories" >> $HTAN_LOG 2>&1
+  sudo chmod -R 750 "$repositories" >> $HTAN_LOG 2>&1
+
+  # config WebDav
+  if Confirm "$(gettext "Do you want to set up web access to %s?")" "Subversion" -yes; then
+    Line
+    # get host
+    EnterHost "$(printf "$(gettext "Enter the domain for %s:")" "Subversion")" -default="svn.$HOSTNAME"
+    local svn_host="$HTAN_ENTERED_HOST"
+
+    Line
+
+    # add host
+    AddHost "$svn_host"
+    Line
+
+    # create index file for main page of the svn website
+    if [[ ! -d /usr/share/svn-web ]]; then
+      Execute -c="sudo mkdir /usr/share/svn-web >> $HTAN_LOG 2>&1" -m="$(gettext "Creating %s …")" -a="/usr/share/svn-web" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      Line
+    fi
+
+    Execute -c="sudo chown -R www-data:www-data /usr/share/svn-web >> $HTAN_LOG 2>&1" -m="$(gettext "Set permissions on the %s …")" -a="/usr/share/svn-web" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+
+    if [[ -d "$HTAN_PATH_DATA/svn-server" ]]; then
+
+      Execute -c="sudo cp $HTAN_PATH_DATA/svn-server/* /usr/share/svn-web >> $HTAN_LOG 2>&1" -m="$(gettext "Creating the necessary files …")" -a="/usr/share/svn-web" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+            
+      if [[ -f /usr/share/svn-web/index.xsl ]]; then
+        ReplaceMarker /usr/share/svn-web/index.xsl "ServerName" "$HOSTNAME" # >> $HTAN_LOG 2>&1
+      else
+        Line
+      fi
+    fi
+
+    # config nginx
+    AddSiteToNginx -host="$svn_host" -source="dav_svn.conf" -root="/usr/share/svn-web"
+    Line
+
+    # config apache
+    AddSiteToApache -host="$svn_host" -source="dav_svn.conf" \
+    -DocumentRoot="/usr/share/svn-web" \
+    -SVNParentPath="$repositories" \
+    -AuthName="Subversion Repository" \
+    -AuthUserFile="/etc/apache2/dav_svn.passwd" \
+    -AuthzSVNAccessFile="/etc/apache2/dav_svn.authz" \
+    -SVNListParentPath="On" \
+    -SVNIndexXSLT="/usr/share/svn-web/index.xsl"
+
+    # create roles
+    INI_SetValue -file="/etc/apache2/dav_svn.authz" -section="groups" -key="administrators"
+    INI_SetValue -file="/etc/apache2/dav_svn.authz" -section="/" -key="@administrators" -value="rw"
+
+    local svn_admins="$(INI_GetValue -file="/etc/apache2/dav_svn.authz" -section="groups" -key="administrators")"
+    local svn_username svn_password
+    local add_other_admin="-yes"
+    local svn_admins_for_si=""
+
+    # add administrator
+    while true; do
+
+      # Хотите добавить пользователя администратора сервера SVN?
+      if ! Confirm "$(gettext "Do you want to add an administrator to the SVN server?")" $add_other_admin; then
+        Line
+        break
+      fi
+
+      Line
+
+      # Введите имя пользователя:
+      Message "$(gettext "Enter a username:")" -s="$DEF_STYLE_ENTER"
+
+      Read svn_username
+
+      Line
+
+      if [[ -n "$svn_username" ]]; then
+
+        if EnterPassword; then
+          svn_password="$HTAN_PASSWORD"
+
+          Line
+
+          local htpasswd_param="-mb"
+
+          if [[ ! -f /etc/apache2/dav_svn.passwd ]]; then
+            htpasswd_param="-mbc"
+          fi
+
+          # create password
+          if sudo htpasswd $htpasswd_param /etc/apache2/dav_svn.passwd "$svn_username" "$svn_password" >> $HTAN_LOG 2>&1; then
+            # TODO: fix for substrings
+            if [[ -z "$svn_admins" || -n "${svn_admins##*$svn_username*}" ]]; then
+              if [[ -n "$svn_admins" ]]; then
+                svn_admins+=", "
+              fi
+
+              svn_admins+="$svn_username"
+
+              # add to dav_svn.authz 
+              INI_SetValue -file="/etc/apache2/dav_svn.authz" -section="groups" -key="administrators" -value="$svn_admins"
+            fi
+
+            # add to server info
+            if [[ -n "$svn_admins_for_si" ]]; then
+              svn_admins_for_si+="\n"
+            fi
+
+            svn_admins_for_si+="$svn_username / $svn_password"
+          else
+            Message "$(gettext "Failed to create the user.")" -s="$DEF_STYLE_ERROR"
+            Line
+          fi
+        fi
+
+      else
+        # Ошибка: Имя пользователя не может быть пустым.
+        Message "$(gettext "Error: Username is required. Value cannot be empty.")" -s="$DEF_STYLE_ERROR"
+        add_other_admin="-no"
+        Line
+      fi
+
+    done
+
+    # Line
+    ServiceRestart nginx
+
+    Line
+
+    ServiceRestart apache2
+
+    # info for server admin
+    ServerInfo "Subversion:\n"
+    ServerInfo "--------------------------------------------\n"
+    ServerInfo "$(gettext "Address"): http://$svn_host\n\n"
+    if [[ -n "$svn_admins_for_si" ]]; then
+      ServerInfo "$(gettext "Accounts:")\n$svn_admins_for_si\n"
+    fi
+    
+    # ServerInfo "$(gettext "List of users to access the server is located in a file:"):\n"
+    # ServerInfo "/etc/apache2/dav_svn.passwd\n\n"
+    # ServerInfo "$(gettext "Use the following command to add a new user:"):\n"
+    # ServerInfo "sudo htpasswd -mb /etc/apache2/dav_svn.passwd username password\n"
+    ServerInfo "--------------------------------------------\n\n"
+  fi
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallSvn

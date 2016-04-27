@@ -1,0 +1,669 @@
+#!/bin/bash
+
+#======================================================================
+# Represents methods for working with configuration files.
+#
+# USAGE:
+#   config [--debug] [--version] [--help] [--nocolor]
+#          [--file="Config file path"]
+#          [--get|--set] [--ini-get|--ini-set]
+#          [--section="Section name (only for INI)"]
+#          [--key="Name of parameter to get or set"]
+#          [--value="Value to set"]
+#          [--delimiter="delimiter of key and value"]
+#
+# NAME:
+#   HTAN Config Tool
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.3
+#
+# CREATED:
+#   14.09.2015
+#
+# REVISION:
+#   19.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "config" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/common"; then
+      if [[ "${0##*/}" != "config" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+HTAN_INCLUDED_TOOLS=("${HTAN_INCLUDED_TOOLS[@]}" "config")
+
+# last saved file for log
+declare LAST_SAVED_FILE=""
+
+#======================================================================
+# Sets the specified value for the specified settings in the 
+# specified configuration file.
+#
+# USAGE:
+#   SetValue -file="Config file path"
+#            -key="Parameter name"
+#            -value="Parameter value"
+#            [-delimiter=" "]
+#
+# ARGUMENTS:
+#   $1
+#   -file
+#     The path to the configuration file in which to set the value.
+#
+#   $2
+#   -key
+#     Parameter name to be set.
+#
+#   $3
+#   -value
+#     Value to set.
+#
+#   $4
+#   -delimiter
+#     The delimiter between parameter name and value.
+#     Default: space.
+#
+# RETURNS:
+#   Returns 0 if the specified value has been written to the file.
+#   Returns 1 if there is no access to the file.
+#======================================================================
+SetValue()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local sv_file="${HTAN_PARSE_ARGS_RESULT[file]:-${HTAN_PARSE_ARGS_RESULT_DEF}}"
+  local sv_key="${HTAN_PARSE_ARGS_RESULT[key]:-${HTAN_PARSE_ARGS_RESULT_NK[0]}}"
+  local sv_value="${HTAN_PARSE_ARGS_RESULT[value]:-${HTAN_PARSE_ARGS_RESULT_NK[1]}}"
+  local sv_delimiter="${HTAN_PARSE_ARGS_RESULT[delimiter]:-${HTAN_PARSE_ARGS_RESULT_NK[2]}}"
+  local sv_delimiter_apnd="$sv_delimiter"
+
+  # validation
+  if [[ -f "$sv_file" ]] && [[ ! -r "$sv_file" || ! -w "$sv_file" ]]; then
+    # Нет доступа к файлу %s.
+    Message "$(gettext "No access to the file %s.")" "$sv_file" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ -z "$sv_key" ]]; then
+    # Необходимо указать имя параметра. Значение не может быть пустым.
+    Error "$(gettext "Key is required. Value can not be empty.")"
+  fi
+  # //
+
+  if [[ -z "$sv_delimiter" ]]; then
+    sv_delimiter="\s+"
+    sv_delimiter_apnd=" "
+  fi
+
+  if [[ "$sv_delimiter" = "=" ]]; then
+    sv_delimiter="\s*=\s*"
+    sv_delimiter_apnd="="
+  fi
+
+  # styles for file name, config key and value
+  local sv_color_k="$DEF_STYLE_CONFIG_KEY" sv_reset_color_k
+  local sv_color_v="$DEF_STYLE_CONFIG_VALUE" sv_reset_color_v
+
+  # special style for ON and OFF
+  sv_color_v=$(GetStyleByValue "$sv_value")
+
+  # set reset styles
+  if [[ -n "$sv_color_k" && "$HTAN_UNSTYLED" == false ]]; then sv_reset_color_k="$STYLE_NORMAL"; fi
+  if [[ -n "$sv_color_v" && "$HTAN_UNSTYLED" == false ]]; then sv_reset_color_v="$STYLE_NORMAL"; fi
+
+  # calculate columns size
+  local sv_size=$(($(tput cols)/2))
+  # and create format for two columns and specific styles
+  local sv_format="${sv_color_k}%-$((${sv_size}-10))s${sv_reset_color_k} ${sv_color_v}%-${sv_size}s${sv_reset_color_v}"
+
+  if [[ "$LAST_SAVED_FILE" != "$sv_file" ]]; then
+    Line =
+    Message "$(gettext "File %s")" -a="$sv_file" -s="$DEF_STYLE_CONFIG_FILE"
+    Line =
+  fi
+
+  if [[ -n "$DEF_STYLE_CONFIG" ]]; then printf "$DEF_STYLE_CONFIG"; fi
+
+  Message "$sv_format" "$sv_key" "$sv_value" -n
+
+  # save or update value
+  if $(grep -qP "^($sv_key($sv_delimiter)).*" "$sv_file"); then
+    sv_value="$(echo "$sv_value" | sed -e 's/[\/\$\&\#\|\.]/\\&/g')"
+    {
+      (sudo sed -i -r "s/($sv_key$sv_delimiter).*/\1$sv_value/" $sv_file) && (Label "$(gettext "[ Updated ]")" -s="$DEF_STYLE_SUCCESS")
+    } || {
+      Fail
+    }
+  else
+    {
+      sudo echo "$sv_key$sv_delimiter_apnd$sv_value" >> $sv_file && Label "$(gettext "[ Added ]")" -s="$DEF_STYLE_SUCCESS"
+    } || {
+      Fail
+    }
+  fi
+
+  if [[ -n $DEF_STYLE_CONFIG ]]; then printf "${STYLE_NORMAL}"; fi
+
+  Debug "SetValue
+ -- file=%s
+ -- key=%s
+ -- value=%s
+ -- delimiter=%s" "$sv_file" "$sv_key" "$sv_value" "$sv_delimiter"
+
+  Line
+
+  LAST_SAVED_FILE=$sv_file
+
+  return 0
+}
+
+#======================================================================
+# Sets the specified value for the specified settings in the 
+# specified configuration file.
+#
+# For this method delimeter is a equal sign (=).
+#
+# USAGE:
+#   SetValue2 -file="Config file path"
+#             -key="Parameter name"
+#             -value="Parameter value"
+#
+# ARGUMENTS:
+#   $1
+#   -file
+#     The path to the configuration file in which to set the value.
+#
+#   $2
+#   -key
+#     Parameter name to be set.
+#
+#   $3
+#   -value
+#     Value to set.
+#
+# RETURNS:
+#   Returns 0 if the specified value has been written to the file.
+#   Returns 1 if there is no access to the file.
+#======================================================================
+SetValue2()
+{
+  SetValue "$@" -delimiter="="
+  return $?
+}
+
+#======================================================================
+# Gets the value of the specified parameter
+# of the specified configuration file.
+#
+# USAGE:
+#   GetValue -file="Config file path"
+#            -key="Parameter name"
+#            [-delimiter=" "]
+#
+# ARGUMENTS:
+#   $1
+#   -file
+#     The path of the configuration file from which to get value.
+#
+#   $2
+#   -key
+#     Parameter name to get value.
+#
+#   $3
+#   -delimiter
+#     The delimiter between parameter name and value.
+#     Default: space.
+#
+# RETURNS:
+#   Returns 0 if the value was successfully received.
+#   Returns 1 if there is no access to the file.
+#   Returns 2 - file not found.
+#======================================================================
+GetValue()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local gv_file="${HTAN_PARSE_ARGS_RESULT[file]:-${HTAN_PARSE_ARGS_RESULT_DEF}}"
+  local gv_key="${HTAN_PARSE_ARGS_RESULT[key]:-${HTAN_PARSE_ARGS_RESULT_NK[0]}}"
+  local gv_delimiter="${HTAN_PARSE_ARGS_RESULT[delimiter]:-${HTAN_PARSE_ARGS_RESULT_NK[1]}}"
+  local gv_delimiter_apnd="$sv_delimiter"
+
+  Debug "GetValue
+ -- file=%s
+ -- key=%s
+ -- delimiter=%s" "$gv_file" "$gv_key" "$gv_delimiter"
+
+  if [[ ! -f "$gv_file" ]]; then
+    return 2
+  fi
+
+  # validation
+  if [[ ! -r "$gv_file" ]]; then
+    # Нет доступа к файлу %s.
+    Message "$(gettext "No access to the file %s.")" "$gv_file" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ -z "$gv_key" ]]; then
+    # Необходимо указать имя параметра. Значение не может быть пустым.
+    Error "$(gettext "Key is required. Value can not be empty.")"
+  fi
+
+  if [[ -z "$gv_delimiter" ]]; then
+    gv_delimiter="\s+"
+  fi
+
+  if [[ "$gv_delimiter" = "=" ]]; then
+    gv_delimiter="\s*=\s*"
+  fi
+
+  # get value from file
+  local result=$(grep -P "^($gv_key($gv_delimiter)).*" $gv_file | sed -r "s/$gv_key$gv_delimiter(.*)/\1/")
+
+  echo "$result"
+
+  return 0
+}
+
+#======================================================================
+# Sets the specified value for the specified settings in the 
+# specified ini file.
+#
+# USAGE:
+#   INI_SetValue -file="Config file path"
+#                -section="Section name"
+#                -key="Parameter name"
+#                -value="Parameter value"
+#
+# ARGUMENTS:
+#   $1
+#   -file
+#     The path to the configuration file in which to set the value.
+#
+#   $2
+#   -section
+#     Section name.
+#
+#   $3
+#   -key
+#     Parameter name to be set.
+#
+#   $4
+#   -value
+#     Value to set.
+#
+# RETURNS:
+#   Returns 0 if the specified value has been written to the file.
+#   Returns 1 if there is no access to the file.
+#======================================================================
+INI_SetValue()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local isv_file="${HTAN_PARSE_ARGS_RESULT[file]:-${HTAN_PARSE_ARGS_RESULT_DEF}}"
+  local isvs_section="${HTAN_PARSE_ARGS_RESULT[section]:-${HTAN_PARSE_ARGS_RESULT_NK[0]}}"
+  local isvs_key="${HTAN_PARSE_ARGS_RESULT[key]:-${HTAN_PARSE_ARGS_RESULT_NK[1]}}"
+  local isv_value="${HTAN_PARSE_ARGS_RESULT[value]:-${HTAN_PARSE_ARGS_RESULT_NK[2]}}"
+
+  # validation
+  # sudo test -w "$isv_file"
+  if [[ -f "$isv_file" ]] && [[ ! -r "$isv_file" || ! -w "$isv_file" ]]; then
+    # Нет доступа к файлу %s.
+    Message "$(gettext "No access to the file %s.")" "$isv_file" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ -z "$isvs_section" ]]; then
+    # Необходимо указать имя секции. Значение не может быть пустым.
+    Error "$(gettext "Section name is required. Value can not be empty.")"
+  fi
+
+  if [[ -z "$isvs_key" ]]; then
+    # Необходимо указать имя параметра. Значение не может быть пустым.
+    Error "$(gettext "Key is required. Value can not be empty.")"
+  fi
+  # //
+
+  # styles for file name, config key and value
+  local isv_color_k="$DEF_STYLE_CONFIG_KEY" isv_reset_color_k
+  local isv_color_v="$DEF_STYLE_CONFIG_VALUE" isv_reset_color_v
+
+  # special style for ON and OFF
+  isv_color_v=$(GetStyleByValue "$value")
+
+  # set reset styles
+  if [[ -n "$isv_color_k" && "$HTAN_UNSTYLED" == false ]]; then isv_reset_color_k="$STYLE_NORMAL"; fi
+  if [[ -n "$isv_color_v" && "$HTAN_UNSTYLED" == false ]]; then isv_reset_color_v="$STYLE_NORMAL"; fi
+
+  # calculate columns size
+  local isv_size=$(($(tput cols)/2))
+  # and create format for two columns and specific styles
+  local isv_format="${isv_color_k}%-$((${isv_size}-10))s${isv_reset_color_k} ${isv_color_v}%-${isv_size}s${isv_reset_color_v}"
+
+  if [[ "$LAST_SAVED_FILE" != "$isv_file" ]]; then
+    Line =
+    Message "$(gettext "File %s")" -a="$isv_file" -s="$DEF_STYLE_CONFIG_FILE"
+    Line =
+  fi
+
+  if [[ -n "$DEF_STYLE_CONFIG" ]]; then printf "$DEF_STYLE_CONFIG"; fi
+
+  Message "$isv_format" "$isvs_section/$isvs_key" "$isv_value" -n
+
+  # check for existence the section and key
+  INI_GetValue -file="$isv_file" -section="$isvs_section" -key="$isvs_key" > /dev/null
+  local isv_has_value=$?
+
+  if [[ "$isv_has_value" = "0" ]]; then
+    # update value
+    isv_value="$(echo "$isv_value" | sed -e 's/[\/\$\&\#\|\.]/\\&/g')"
+    {
+      (sudo sed -i -r "/^\[$isvs_section\]$/,/^\[/ s/^($isvs_key\s*=\s*)(.*)/\1$isv_value/" $isv_file) && (Label "$(gettext "[ Updated ]")" -s="$DEF_STYLE_SUCCESS")
+    } || {
+      Fail
+    }
+  else
+    # new value
+    local isv_data=""
+    if [[ "$isv_has_value" = "3" || "$isv_has_value" = "4" ]]; then
+      # append section
+      isv_data="[$isvs_section]\n"
+      # append key and value
+      isv_data="$isv_data$isvs_key=$isv_value"
+      {
+        sudo echo -e "$isv_data" >> $isv_file && Label "$(gettext "[ Added ]")" -s="$DEF_STYLE_SUCCESS"
+      } || {
+        Fail
+      }
+    else
+      # insert key and value
+      isv_value="$(echo "$isv_value" | sed -e 's/[\/\$\&\#\|\.]/\\&/g')"
+      {
+        (sudo sed -i -r "s/^(\[$isvs_section\]$)/\1\n$isvs_key=$isv_value/" $isv_file) && Label "$(gettext "[ Added ]")" -s="$DEF_STYLE_SUCCESS"
+      } || {
+        Fail
+      }
+    fi
+  fi
+
+  if [[ -n $DEF_STYLE_CONFIG ]]; then printf "${STYLE_NORMAL}"; fi
+
+  Debug "INI_SetValue
+ -- file=%s
+ -- section=%s
+ -- key=%s
+ -- value=%s" "$isv_file" "$isvs_section" "$isvs_key" "$isv_value"
+
+  Line
+
+  LAST_SAVED_FILE=$isv_file
+
+  return 0
+}
+
+#======================================================================
+# Gets the value of the specified parameter of the specified ini file.
+#
+# USAGE:
+#   INI_GetValue -file="Config file path"
+#                -section="Section name"
+#                -key="Parameter name"
+#
+# ARGUMENTS:
+#   $1
+#   -file
+#     The path of the configuration file from which to get value.
+#
+#   $2
+#   -section
+#     Section name.
+#
+#   $3
+#   -key
+#     Parameter name to get value.
+#
+# RETURNS:
+#   Returns 0 when value was successfully received.
+#   Returns 1 when not access to the file.
+#   Returns 2 when key not found.
+#   Returns 3 when section not found.
+#   Returns 4 when file not found.
+#======================================================================
+INI_GetValue()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local igv_file="${HTAN_PARSE_ARGS_RESULT[file]:-${HTAN_PARSE_ARGS_RESULT_DEF}}"
+  local igvs_section="${HTAN_PARSE_ARGS_RESULT[section]:-${HTAN_PARSE_ARGS_RESULT_NK[0]}}"
+  local igvs_key="${HTAN_PARSE_ARGS_RESULT[key]:-${HTAN_PARSE_ARGS_RESULT_NK[1]}}"
+
+  # Debug "INI_GetValue
+  # -- file=%s
+  # -- section=%s
+  # -- key=%s" "$igv_file" "$igvs_section" "$igvs_key"
+
+  if [[ ! -f "$igv_file" ]]; then
+    return 4
+  fi
+
+  # validation
+  if [[ ! -r "$igv_file" ]]; then
+    return 1
+  fi
+
+  if [[ -z "$igvs_section" ]]; then
+    # Необходимо указать имя секции. Значение не может быть пустым.
+    Error "$(gettext "Section name is required. Value can not be empty.")"
+  fi
+
+  if [[ -z "$igvs_key" ]]; then
+    # Необходимо указать имя параметра. Значение не может быть пустым.
+    Error "$(gettext "Key is required. Value can not be empty.")"
+  fi
+  # //
+
+  igvs_section="[$igvs_section]"
+
+  # search section
+  local igv_line igv_key igv_value
+  while IFS='' read -r igv_line || [[ -n "$igv_line" ]]; do
+    # is section or not
+    if [[ "${igv_line:0:1}" != "[" ]]; then
+      continue
+    fi
+    # is our section or not
+    if [[ "$igv_line" != "$igvs_section" ]]; then
+      continue
+    fi
+    # search key
+    while IFS='=' read -r igv_key igv_value; do
+      if [[ "${igv_key:0:1}" = "[" ]]; then
+        # new section, exit
+        break
+      fi
+      if [[ "$(Trim "$igv_key")" != "$igvs_key" ]]; then
+        continue
+      fi
+      # output
+      echo "$(Trim "$igv_value")"
+      # successfully
+      return 0
+    done
+    # section found, but key not found
+    return 2
+  done < $igv_file
+  # section not found
+  return 3
+}
+
+#======================================================================
+# Replaces the text markers in the specified file.
+# Markers have the following format: {Key}
+#
+# USAGE:
+#   ReplaceMarker -file="File path"
+#                 -key="Marker name"
+#                 -value="Value to set"
+#
+# ARGUMENTS:
+#   $1
+#   -file
+#     The path of the file.
+#
+#   $2
+#   -key
+#     Marker name to replacement.
+#
+#   $3
+#   -value
+#     Value to set.
+#
+#   $4
+#   -newline
+#     Newline char. 
+#     This character or string will be replaced by a new line.
+#
+# RETURNS:
+#   Returns 0 when value was successfully received.
+#   Returns 1 when not access to the file.
+#======================================================================
+ReplaceMarker()
+{
+  # parse and set parameters to variables
+  ParseArgs "$@"
+  local rm_file="${HTAN_PARSE_ARGS_RESULT[file]:-${HTAN_PARSE_ARGS_RESULT_DEF}}"
+  local rm_key="${HTAN_PARSE_ARGS_RESULT[key]:-${HTAN_PARSE_ARGS_RESULT_NK[0]}}"
+  local rm_value="${HTAN_PARSE_ARGS_RESULT[value]:-${HTAN_PARSE_ARGS_RESULT_NK[1]}}"
+  local rm_newline="${HTAN_PARSE_ARGS_RESULT[newline]:-${HTAN_PARSE_ARGS_RESULT_NK[2]}}"
+
+  # validation
+  if [[ ! -r "$rm_file" || ! -w "$rm_file" ]]; then
+    # Нет доступа к файлу %s.
+    Message "$(gettext "No access to the file %s.")" "$rm_file" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ -z "$rm_key" ]]; then
+    # Необходимо указать имя маркера. Значение не может быть пустым.
+    Error "$(gettext "Marker name is required. Value can not be empty.")"
+  fi
+  # //
+
+  # calculate columns size
+  local rm_size=$(($(tput cols)/2))
+  # and create format for two columns and specific styles
+  local rm_format="${DEF_STYLE_CONFIG_KEY}%-$((${rm_size}-10))s${STYLE_NORMAL} ${DEF_STYLE_CONFIG_VALUE}%-${rm_size}s${STYLE_NORMAL}"
+
+  if $HTAN_UNSTYLED; then
+    rm_format="%-$((${rm_size}-10))s %-${rm_size}s"
+  fi
+
+  if [[ "$LAST_SAVED_FILE" != "$rm_file" ]]; then
+    Line =
+    # Файл %s
+    Message "$(gettext "File %s")" -a="$rm_file" -s="$DEF_STYLE_CONFIG_FILE"
+    Line =
+  fi
+
+  local rm_multiple_lines=false
+
+  if [[ "$rm_value" == *$'\n'* ]] || [[ -n "$rm_newline" && "$rm_value" == *"${rm_newline}"* ]]; then
+    Message "$rm_format" "$rm_key" "<multiple-lines>" -n
+    if [[ -z "$rm_newline" ]]; then
+      rm_newline=$'\x01'
+    fi
+  else
+    Message "$rm_format" "$rm_key" "$rm_value" -n
+  fi
+
+  if [[ -n "$rm_newline" ]]; then
+    rm_multiple_lines=true
+  fi
+
+  if $(sudo grep -q "\{$rm_key\}" $rm_file); then
+    rm_value="$(echo "$rm_value" | sed -r ':a;N;$!ba;s/\n{1}/$rm_newline/g' | sed -e 's/[\/\$\&\#\|\.]/\\&/g')"
+    if [[ "$rm_multiple_lines" == false ]]; then
+      Execute 'sudo sed -i -r "s/\{$rm_key\}/$rm_value/" $rm_file 2> /dev/null; wait' -lr
+    else
+      # todo: to find a better solution to the problem
+      Execute 'sudo sed -i -r "s/\{$rm_key\}/$rm_value/" $rm_file 2> /dev/null && sudo sed -i -r "s/$rm_newline{1}/\x0a/g" $rm_file 2> /dev/null; wait' -lr
+    fi
+  else
+    NoFound
+  fi
+
+  Line
+
+  LAST_SAVED_FILE=$rm_file
+
+  return 0
+}
+
+GetStyleByValue()
+{
+  case $(ToUpperCase "$1") in
+    "YES" | "ON" | "TRUE" | "1")
+      if [[ -n "$DEF_STYLE_CONFIG_VALUE_ON" ]]; then 
+        printf "$DEF_STYLE_CONFIG_VALUE_ON"
+      fi;;
+    "NO" | "OFF" | "FALSE" | "0")
+      if [[ -n "$DEF_STYLE_CONFIG_VALUE_OFF" ]]; then 
+        printf "$DEF_STYLE_CONFIG_VALUE_OFF"
+      fi;;
+    *)
+      printf "$DEF_STYLE_CONFIG_VALUE"
+  esac
+}
+
+#----------------------------------------------------------------------
+# Self-script
+#----------------------------------------------------------------------
+if [[ "${0##*/}" == "config" ]]; then
+  ParseArgs "$@"
+  HTAN_ONE_SKIP_PARSE_ARGS=true
+
+  if [[ -n "${HTAN_PARSE_ARGS_RESULT[get]}" ]]; then
+    GetValue
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[set]}" ]]; then
+    SetValue
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[ini-get]}" ]]; then
+    INI_GetValue
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[ini-set]}" ]]; then
+    INI_SetValue
+  fi
+
+  exit $?
+fi

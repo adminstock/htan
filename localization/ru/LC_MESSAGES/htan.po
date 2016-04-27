@@ -1,0 +1,1182 @@
+# Hosting tools by Aleksey Nemiro (HTAN).
+# Copyright © Aleksey Nemiro, 2016. All rights reserved.
+# This file is distributed under the same license as the HTAN package.
+
+msgid ""
+msgstr ""
+"Project-Id-Version: htan 1.0\n"
+"Report-Msgid-Bugs-To: aleksey@kbyte.ru\n"
+"POT-Creation-Date: 2016-01-11 00:39+0300\n"
+"PO-Revision-Date: 2016-01-11 22:07+0300\n"
+"Last-Translator: Aleksey Nemiro <aleksey@kbyte.ru>\n"
+"Language-Team: Russian <aleksey@kbyte.ru>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../run:78
+msgid "Hi %s!"
+msgstr "Привет, %s!"
+
+#: ../run:81
+msgid "This script will help to configure the server for web hosting."
+msgstr "Этот скрипт поможет провести настройку сервера для веб-хостинга.\\nВ процессе настройки от вас может потребоваться принятие решений."
+
+#: ../run:183
+msgid "To this server will be installed the following components:"
+msgstr "На сервер будут установлены следующие компоненты:"
+
+#: ../run:207
+msgid "Optionally can be installed the following components:"
+msgstr "Опционально могут быть установлены следующие компоненты:"
+
+#: ../run:231
+msgid "Will be configured the following components:"
+msgstr "Будет выполнена конфигурация следующих элементов:"
+
+#: ../run:235
+msgid "System configuration"
+msgstr "Конфигурация системы"
+
+#: ../run:248
+msgid "HELP -- Press RETURN for more, or Q for skip"
+msgstr "HELP -- Press RETURN for more, or Q for skip"
+
+#: ../run:256 ../installers/adduser:82
+msgid "Do you want to continue?"
+msgstr "Хотите продолжить?"
+
+#: ../run:258 ../run:437
+msgid "Goodbye!"
+msgstr "До свидания!"
+
+#: ../run:273
+msgid "WARNING: To avoid problems, it is recommended to execute the script as root."
+msgstr "ВНИМАНИЕ: Для удобства и минимизации возникновения ошибок в процессе работы скрипта, рекомендуется запускать его под пользователем root."
+
+#: ../run:276
+msgid "Do you want to restart this script as root?"
+msgstr "Хотите перезапустить скрипт под учетной записью root?"
+
+#: ../run:282
+msgid "Many components will cannot be installed without root privileges.\\nIt is highly recommended to restart the script as root."
+msgstr "Многие компоненты будет просто невозможно установить без прав пользователя root.\\nНастоятельно рекомендуется продолжить выполнение скрипта под учетной записью пользователя root."
+
+#: ../run:285
+msgid "Press Y, to restart the script with root privileges.\\nPress N, to continue execution of the script under the current account (%s)."
+msgstr "Нажмите Y, чтобы войти под учетной записью root.\\nНажмите N, чтобы попытаться выполнить скрипт под учетной записью %s (нет никаких гарантий, что все пройдет гладко)."
+
+#: ../run:292
+msgid "Let's try..."
+msgstr "Попробуем, может что и получится..."
+
+#: ../run:298
+msgid "Let's go!"
+msgstr "Поехали!"
+
+#: ../run:308
+msgid "Probably the previous installation process was not completed or was completed incorrectly.\\nPress Y, to continue where it left off.\\nPress N, to start the installation again."
+msgstr "Вероятно, предыдущий процесс работы скрипта был прерван или завершился некорректно.\\nНажмите Y, чтобы продолжить выполнение предыдущей сессии (рекомендуется).\\nНажмите N, чтобы начать процесс установки и конфигурации заново."
+
+msgid "Do you want to continue the previous session?"
+msgstr "Хотите продолжить с места остановки предыдущего запуска?"
+
+#: ../run:331
+msgid "Hostname"
+msgstr "Имя хоста"
+
+#: ../run:332
+msgid "Server IP"
+msgstr "IP сервера"
+
+#: ../run:333
+msgid "CPU"
+msgstr "Процессор"
+
+#: ../run:334
+msgid "RAM"
+msgstr "Оперативная память"
+
+#: ../run:335
+msgid "HDD"
+msgstr "Жесткий диск"
+
+#: ../run:374
+msgid "Installed packages:"
+msgstr "На сервер установлены следующие пакеты:"
+
+#: ../run:388
+msgid "The server is configured!"
+msgstr "Настройка сервера завершена!"
+
+#: ../run:393
+msgid "Information to access the components of the server can be found in the file: %s."
+msgstr "Информацию о конфигурации и параметрах доступа к компонентам сервера можно найти в файле: %s."
+
+#: ../run:397
+msgid "Do you want to send the file by email?"
+msgstr "Хотите отправить этот файл по email?"
+
+#: ../run:406 ../installers/postfix:138
+msgid "Sending a message …"
+msgstr "Отправка сообщения …"
+
+#: ../run:426
+msgid "Do you want to see the log?"
+msgstr "Хотите посмотреть журнал?"
+
+#: ../run:433
+msgid "Recommended to reboot the server."
+msgstr "Для завершения, рекомендуется перезапустить сервер."
+
+#: ../run:436
+msgid "Do you want to reboot now?"
+msgstr "Хотите выполнить перезагрузку сейчас?"
+
+#: ../installers/adduser:61 ../installers/fail2ban:61 ../installers/mc:61
+#: ../installers/nginx:61 ../installers/php5:61 ../installers/phppgadmin:61
+#: ../installers/rcs:61 ../installers/apache2:61 ../installers/mono:61
+#: ../installers/nmap:61 ../installers/postfix:61 ../installers/ssh:61
+#: ../installers/vsftpd:61 ../installers/etckeeper:61
+#: ../installers/iptables:61 ../installers/mysql:61 ../installers/ntp:61
+#: ../installers/phpmyadmin:61 ../installers/postgresql:61
+#: ../installers/sudo:61 ../installers/xinetd:61 ../tools/config:61
+#: ../tools/package:68 ../tools/service:59 ../tools/web:64
+msgid "Failed to include the common."
+msgstr "Не удалось выполнить подключение файла common."
+
+#: ../installers/adduser:73 ../installers/rcs:73 ../installers/ssh:79
+msgid "# Configuring %s."
+msgstr "# Конфигурация %s."
+
+#: ../installers/adduser:77
+msgid ""
+"adduser creates a new user or sets the default information for new users."
+"\\nThis script creates the optimal for web hosting template directories and "
+"files for new users.\\nEach new user will be member of the group www-data."
+"\\nAll new users, for security reasons, the default will be denied access "
+"through the shell."
+msgstr "Команда adduser предназначена для добавления новых пользователей.\\n"
+"Данный скрипт сформирует в /etc/skel оптимальный для веб-хостинга шаблон каталогов и файлов для новых пользователей.\\n"
+"Каждый новый пользователь будет по умолчанию помещен в группу www-data.\\n"
+"Для всех создаваемых пользователями каталогов будут выставлены разрешения 755.\\n"
+"Всем новым пользователям, в целях безопасности, по умолчанию будет запрещен доступ через shell."
+
+#: ../installers/adduser:98
+msgid "Enter the default shell:"
+msgstr "Введите shell по умолчанию:"
+
+#: ../installers/adduser:103 ../installers/adduser:196
+#: ../installers/adduser:230 ../installers/adduser:253
+msgid "Value cannot be empty."
+msgstr "Значение не может быть пустым."
+
+#: ../installers/adduser:114
+msgid "By default, the basic settings for the newly created users are in the folder %s."
+msgstr "По умолчанию, базовые настройки для создаваемых пользователей находятся в папке %s."
+
+#: ../installers/adduser:116
+msgid "Do you want to use this folder?"
+msgstr "Хотите использовать эту папку?"
+
+#: ../installers/adduser:120
+msgid "Enter the path to the folder SKEL:"
+msgstr "Введите путь к папке SKEL:"
+
+#: ../installers/adduser:125
+msgid "You must specify the path to the folder SKEL!"
+msgstr "Необходимо указать путь к папке SKEL!"
+
+#: ../installers/adduser:127
+msgid "Maybe better to use %s?"
+msgstr "Может лучше использовать %s?"
+
+#: ../installers/adduser:132
+msgid "The folder %s was not found."
+msgstr "Папка %s не найдена."
+
+#: ../installers/adduser:134
+msgid "Do you want to create a folder %s?"
+msgstr "Хотите создать папку %s?"
+
+#: ../installers/adduser:139 ../installers/adduser:203
+msgid "Unable to create directory %s."
+msgstr "Не удалось создать каталог %s."
+
+#: ../installers/adduser:163
+msgid "Files and folders of %s will be automatically copied to the home user folder when adding a user (adduser)."
+msgstr "Содержимое каталога %s будет автоматически копироваться в папку пользователя при добавлении пользователя (adduser)."
+
+#: ../installers/adduser:170
+msgid "Would you like add to the directory %s the folder %s?"
+msgstr "Хотите добавить в каталог %s папку %s?"
+
+#: ../installers/adduser:185
+msgid "Do you want to add a new folder?"
+msgstr "Хотите добавить новую папку?"
+
+#: ../installers/adduser:192
+msgid "Enter the path to the folder:"
+msgstr "Введите путь к папке:"
+
+#: ../installers/adduser:200
+msgid "Created a new folder %s."
+msgstr "Создана новая папка %s."
+
+#: ../installers/adduser:212
+msgid "Enter the name of the group for a new users:"
+msgstr "Укажите название группы, в которую будут автоматически помещаться создаваемые пользователи:"
+
+#: ../installers/adduser:224
+msgid "Failed to create the group %s. Check the name of the group and try again."
+msgstr "Не удалось создать группу %s. Проверьте имя группы и повторите попытку."
+
+#: ../installers/adduser:246
+msgid "Set permissions that should have home directories for new users."
+msgstr "Укажите разрешения, которые должны иметь домашние каталоги новых пользователей."
+
+#: ../installers/adduser:250
+msgid "Enter the numeric code of permissions:"
+msgstr "Введите код необходимых разрешений:"
+
+#: ../installers/adduser:265
+msgid "Applying settings."
+msgstr "Применение настроек."
+
+#: ../installers/adduser:285 ../installers/fail2ban:149 ../installers/mc:90
+#: ../installers/nginx:98 ../installers/php5:115 ../installers/phppgadmin:101
+#: ../installers/phppgadmin:154 ../installers/rcs:90 ../installers/apache2:139
+#: ../installers/mono:189 ../installers/nmap:105 ../installers/postfix:156
+#: ../installers/ssh:192 ../installers/vsftpd:116 ../installers/vsftpd:372
+#: ../installers/etckeeper:118 ../installers/iptables:204
+#: ../installers/mysql:125 ../installers/ntp:140 ../installers/phpmyadmin:108
+#: ../installers/phpmyadmin:198 ../installers/postgresql:140
+#: ../installers/sudo:188 ../installers/xinetd:98
+msgid "Done."
+msgstr "Готово."
+
+#: ../installers/fail2ban:79 ../installers/nginx:81 ../installers/php5:81
+#: ../installers/phppgadmin:81 ../installers/apache2:80 ../installers/mono:91
+#: ../installers/postfix:80 ../installers/vsftpd:79 ../installers/etckeeper:79
+#: ../installers/iptables:80 ../installers/mysql:83 ../installers/ntp:72
+#: ../installers/phpmyadmin:81 ../installers/postgresql:83
+#: ../installers/sudo:79 ../installers/xinetd:79
+msgid "# Installing and configuring %s."
+msgstr "# Установка и настройка %s."
+
+#: ../installers/fail2ban:83
+msgid "Fail2ban is an intrusion prevention software framework which protects computer servers from brute-force attacks."
+msgstr "Fail2ban - программа для защиты сервера от различного вида атак."
+
+#: ../installers/fail2ban:87 ../installers/etckeeper:88
+msgid "%s has not been installed."
+msgstr "Программа %s не была установлена."
+
+#: ../installers/mc:80 ../installers/nmap:79
+msgid "# Installing %s."
+msgstr "# Установка %s."
+
+#: ../installers/mc:84
+msgid "Midnight Commander is a visual file manager."
+msgstr "Midnigth Commander - это файловый менеджер. Программа сделана в стиле FAR/Norton и может быть удобна при миграции с Windows систем."
+
+#: ../installers/php5:107
+msgid "Do you want to install the Developer Tools for PHP5?"
+msgstr "Хотите установить пакет для разработчиков PHP5?"
+
+#: ../installers/phppgadmin:85
+msgid "phpPgAdmin is a web application, written in PHP, for managing PostgreSQL databases."
+msgstr "Для управления PostgreSQL рекомендуется установить веб-панель - phpPgAdmin."
+
+#: ../installers/phppgadmin:91 ../installers/phpmyadmin:96
+msgid "On this server is already installed %s."
+msgstr "На сервере уже установлен пакет %s."
+
+#: ../installers/phppgadmin:92 ../installers/vsftpd:90
+#: ../installers/phpmyadmin:98
+msgid "Would you like to configure? (the current settings will be overwritten)"
+msgstr "Хотите провести конфигурацию (файл настроек будет перезаписан)?"
+
+msgid "Would you like to configure?"
+msgstr "Хотите провести конфигурацию?"
+
+#: ../installers/phppgadmin:93 ../installers/vsftpd:92
+#: ../installers/phpmyadmin:100 ../installers/sudo:100
+msgid "Operation canceled by the user."
+msgstr "Операция прервана пользователем."
+
+#: ../installers/phppgadmin:113 ../installers/phpmyadmin:154
+msgid "Creating configuration file for %s …"
+msgstr "Создание файла конфигурации %s …"
+
+#: ../installers/phppgadmin:135 ../installers/phpmyadmin:178 ../tools/web:120
+#: ../tools/web:210
+msgid "Unable to configure %s. The file %s was not found."
+msgstr "Невозможно настроить %s. Шаблон %s не найден."
+
+#: ../installers/phppgadmin:138 ../installers/phpmyadmin:182
+msgid "Do you want to set up web access to %s?"
+msgstr "Хотите настроить веб-доступ к %s?"
+
+#: ../installers/phppgadmin:139 ../installers/phpmyadmin:184
+msgid "Enter the domain for %s:"
+msgstr "Введите домен, по которому можно будет получить доступ к %s:"
+
+#: ../installers/phppgadmin:147 ../installers/phpmyadmin:192
+msgid "Address"
+msgstr "Адрес"
+
+#: ../installers/phppgadmin:148
+msgid "Root-access is prohibited for security reasons."
+msgstr "Доступ для суперпользователя ограничен по соображениям безопасности."
+
+#: ../installers/rcs:80
+msgid "When the emergency shutdown, the system can automatically check and try to fix file system errors (FSCKFIX)."
+msgstr "При аварийном завершении работы, система может проверить и попытаться автоматически исправить ошибки файловой системы (FSCKFIX)."
+
+#: ../installers/rcs:82
+msgid "Do you want to enable this option?"
+msgstr "Хотите включить эту опцию?"
+
+#: ../installers/apache2:116
+msgid "Testing for errors …"
+msgstr "Тест на наличие ошибок …"
+
+#: ../installers/apache2:123 ../installers/vsftpd:339 ../installers/ntp:100
+msgid "Testing %s …"
+msgstr "Тестирование %s …"
+
+#: ../installers/apache2:127
+msgid "Perhaps Apache is configured incorrectly."
+msgstr "Вероятно, Apache настроен неправильно."
+
+#: ../installers/apache2:129
+msgid "For details, see the error log of Apache:"
+msgstr "Для получения деталей, ознакомьтесь с журналом ошибок Apache:"
+
+#: ../installers/apache2:132
+msgid "Check the /etc/apache2/ports.conf and /etc/apache2/sites-enabled/000-default.conf."
+msgstr "Проверьте файлы /etc/apache2/ports.conf и /etc/apache2/sites-enabled/000-default.conf."
+
+#: ../installers/apache2:134
+msgid "To work with Nginx, Apache must listen on port %s."
+msgstr "Для правильной работы с Nginx, следует ограничить обработку запросов Apache только локальным адресом 127.0.0.1:%s."
+
+#: ../installers/mono:95
+msgid "Mono is a free and open source project led by Xamarin to create an Ecma standard-compliant, .NET Framework-compatible set of tools including, among others, a C# compiler and a Common Language Runtime."
+msgstr "Mono - набор компонентов для запуска приложений .NET Framеwork."
+
+#: ../installers/mono:100 ../tools/package:148
+msgid "Do you want to install %s?"
+msgstr "Хотите установить %s?"
+
+#: ../installers/mono:102 ../installers/mysql:92 ../installers/postgresql:92
+msgid "Installation canceled by the user."
+msgstr "Установка прервана пользователем."
+
+#: ../installers/mono:109
+msgid "Adding keys …"
+msgstr "Добавление ключей …"
+
+#: ../installers/mono:131
+msgid "SSL support for Mono"
+msgstr "Пакет поддержки SSL для Mono"
+
+#: ../installers/mono:138
+msgid "Building the test file …"
+msgstr "Сборка тестового файла …"
+
+#: ../installers/mono:142
+msgid "Running the compiled file …"
+msgstr "Исполнение тестового файла …"
+
+#: ../installers/mono:145
+msgid "File %s was not found. Probably the build process there were some problems."
+msgstr "Файл %s не найден. Вероятно, во время компиляции возникли какие-то проблемы."
+
+#: ../installers/mono:149
+msgid "File %s was not found. Unable to check compiler Mono."
+msgstr ""
+
+#: ../installers/mono:154
+msgid "## Installing and configuring Mono for ASP.NET."
+msgstr "## Установка и конфигурация Mono для ASP.NET."
+
+#: ../installers/mono:178
+msgid "Configuring Mono for Apache …"
+msgstr "Настройка модуля Mono для Apache …"
+
+#: ../installers/nmap:83
+msgid "Nmap is security and port scanner, network exploration tool."
+msgstr "Nmap - это утилита для исследования сети и сканер портов."
+
+#: ../installers/nmap:89
+msgid "It is recommended to scan the security of the server. But if you are only "
+"now configure the server, it is recommended to scan, after the server is "
+"restarted."
+msgstr "Если вы впервые разворачиваете сервер, то рекомендуется провести проверку после перезагрузки, когда будут запущены все сетевые службы и межсетевой экран."
+
+#: ../installers/nmap:91
+msgid "Do you want to scan ports now?"
+msgstr "Хотите провести сканирование портов сейчас?"
+
+#: ../installers/nmap:99
+msgid "To scan manually, perform the following command:"
+msgstr "Для запуска процесса сканирования вручную, выполните следующую команду:"
+
+#: ../installers/postfix:84
+msgid "Postfix is a free and open-source mail transfer agent (MTA) that routes and delivers electronic mail."
+msgstr "В качестве почтового сервера рекомендуется использовать Postfix.\\n"
+"Postfix — агент передачи почты (MTA — mail transfer agent).\\n"
+"Помимо этого, для работы почтового сервера, будет установлен пакет mailutils."
+
+#: ../installers/postfix:110
+msgid "Do you want to be notified about errors?"
+msgstr "Хотите получать по почте отчёты о работе сервисов и ошибках?"
+
+#: ../installers/postfix:134
+msgid "Do you want to send a test message?"
+msgstr "Хотите отправить тестовое письмо?"
+
+#: ../installers/ssh:83
+msgid ""
+"Secure Shell (SSH) is a cryptographic (encrypted) network protocol to allow "
+"remote login and other network services to operate securely over an "
+"unsecured network."
+msgstr "Протокол SSH (Secure SHell) необходим для удаленного управления сервером через терминал."
+
+#: ../installers/ssh:101
+msgid ""
+"By default, to connect to an SSH server uses port 22.\\nTo increase security "
+"it is recommended to change the port number to any free port."
+msgstr "По умолчанию для подключения к серверу SSH используется порт 22.\\n"
+"Для безопасности рекомендуется изменить номер порта, поскольку стандартный порт будет подвергаться постоянным атакам.\\n"
+"Желательно, чтобы порт был свободен и не пересекался с другими службами сервера.\\n"
+"Ознакомиться со списком стандартных портов можно в Википедиа:\\n"
+"https://ru.wikipedia.org/wiki/Список_портов_TCP_и_UDP\\n"
+"Вы можете выбрать любой порт, который вам понравится."
+
+#: ../installers/ssh:108
+msgid "With the current configuration, the SSH server is accessible on port %s."
+msgstr "С текущей конфигурацией, сервер SSH доступен на порте %s."
+
+#: ../installers/ssh:110
+msgid "Do you want to change the port number?"
+msgstr "Хотите изменить номер порта?"
+
+#: ../installers/ssh:117
+msgid "Enter the port number (between 1 024 and 65 535):"
+msgstr "Введите номер порта (в диапазоне от 1 024 до 65 535):"
+
+#: ../installers/ssh:125
+msgid "Expected integer ranging from 1 024 to 65 535."
+msgstr "Ожидается целое число в диапазоне от 1 024 до 65 535."
+
+#: ../installers/ssh:151
+msgid "To increase security, you can allow access to the connection to the server only to specific users."
+msgstr "Для большей надежности вы можете разрешить доступ на подключение к серверу только определенным пользователям."
+
+#: ../installers/ssh:155
+msgid "Enter the names of users who are allowed SSH connections:"
+msgstr "Укажите имена пользователей, которым разрешено подключение по протоколу SSH:"
+
+#: ../installers/ssh:157
+msgid "(you can specify more than one user by separating the names with a space)"
+msgstr "(можно указать более одного пользователя, разделяя имена пробелом)"
+
+#: ../installers/ssh:163
+msgid "It is strongly recommended to restrict the list of users to access via SSH."
+msgstr "Настоятельно рекомендуется указать имена пользователей, которым должно быть доступно подключение через SSH."
+
+#: ../installers/ssh:165
+msgid "You really do not want to introduce restrictions on access to server over SSH?"
+msgstr "Вы действительно не хотите ограничивать доступ к серверу SSH?"
+
+#: ../installers/ssh:167
+msgid "You can at any time, can change the configuration of the SSH server in the file %s."
+msgstr "Вы можете в любое время можете изменить конфигурацию сервера SSH в файле %s."
+
+#: ../installers/ssh:186
+msgid "SSH access"
+msgstr "Доступ к серверу через SSH"
+
+#: ../installers/ssh:188 ../installers/mysql:118 ../installers/postgresql:133
+msgid "Host"
+msgstr "Хост"
+
+#: ../installers/ssh:189 ../installers/mysql:119 ../installers/postgresql:134
+msgid "Port"
+msgstr "Порт"
+
+#: ../installers/vsftpd:86
+msgid "On this server is detected Very Secure FTP Daemon (vsftpd)."
+msgstr "На сервере обнаружен Very Secure FTP Daemon (vsftpd)."
+
+#: ../installers/vsftpd:88
+msgid "It is recommended to configure the server FTP."
+msgstr "Рекомендуется провести настройку сервера FTP."
+
+#: ../installers/vsftpd:111
+msgid "WARNING: The version %s of the vsftpd might be outdated.\\nRecommended to use the version not lower than 3.0.2."
+msgstr "ВНИМАНИЕ: Версия vsftpd %s может быть устаревшей.\\n"
+"Рекомендуется использовать программу не ниже версии 3.0.2, дабы избежать проблем с доступом к FTP."
+
+#: ../installers/vsftpd:114
+msgid "Press Y, to try to install version %s.\\nTo cancel, press N."
+msgstr "Нажмите Y, чтобы попробовать установить версию %s.\\n"
+"Для отмены установки, нажмите N."
+
+#: ../installers/vsftpd:140
+msgid "When users connect to the FTP server to the client can display a welcoming message. For example: Welcome to my FTP!"
+msgstr "При подключении к FTP серверу можно вывести в клиент пользователя текст приветствия. "
+"Текст приветствия - небольшое сообщение или фраза.\\n"
+"Например, текст может быть следующим: Welcome to my FTP!"
+
+#: ../installers/vsftpd:143
+msgid "Do you want to enter a welcoming message?"
+msgstr "Хотите ввести текст приветствия?"
+
+#: ../installers/vsftpd:145
+msgid "Enter the welcoming message. Use only English letters:"
+msgstr "Введите строку приветствия. Используйте только английские буквы:"
+
+#: ../installers/vsftpd:152
+msgid "Do you want to to log connections to the server FTP?"
+msgstr "Хотите вести учет подключений к серверу FTP?"
+
+#: ../installers/vsftpd:162
+msgid "Do you want to allow IPv6?"
+msgstr "Разрешить использование IPv6?"
+
+#: ../installers/vsftpd:174
+msgid "FTP-server can operate in passive and/or active mode.\\n"
+"Active mode for the server more secure.\\n"
+"Passive mode is more secure for users and can be most preferred.\\n"
+"Recommended to enable both modes."
+msgstr "FTP-сервер может работать в пассивном и/или активном режиме.\\n"
+"Активный режим безопаснее для сервера.\\n"
+"Пассивный режим безопаснее для клиента.\\n"
+"Рекомендуется включить оба режима."
+
+#: ../installers/vsftpd:180
+msgid "Allow passive mode?"
+msgstr "Разрешить пассивный режим?"
+
+#: ../installers/vsftpd:186
+msgid "For the passive mode will be used port numbers range from %s to %s.\\n"
+"You can change this in the configuration file: %s."
+msgstr "Для работы пассивного режима будут использоваться порты от %s до %s.\\n"
+"Если этого будет не хватать, можно расширить диапазон в файле %s."
+
+#: ../installers/vsftpd:198
+msgid "Allow active mode?"
+msgstr "Разрешить активный режим?"
+
+#: ../installers/vsftpd:301
+msgid "Allowing access to the FTP without shell …"
+msgstr "Разрешение доступа к FTP без shell …"
+
+#: ../installers/vsftpd:312
+msgid "Configuring xinetd for vsftpd …"
+msgstr "Создание правил xinetd для vsftpd …"
+
+#: ../installers/vsftpd:324
+msgid "Failed to create the configuration of xinetd for vsftpd."
+msgstr "Не удалось создать конфигурацию xinetd для vsftpd."
+
+#: ../installers/vsftpd:334
+msgid "It is recommended to test the FTP.\\nThe testing process can take several minutes."
+msgstr "Рекомендуется провести тестирование FTP, путем проверки 21 порта.\\n"
+"Процесс тестирования может занять несколько минут, пока не будет инициализирована конфигурация FTP-сервера в xinetd."
+
+#: ../installers/vsftpd:336
+msgid "Do you want to test FTP?"
+msgstr "Хотите провести тестирование FTP?"
+
+#: ../installers/etckeeper:83
+msgid "Etckeeper lets you keep /etc under version control."
+msgstr "Etckeeper - программа для ведения истории изменений файлов конфигурации.\\n"
+"При установке или обновлении компонентов, вы сможете фиксировать состояние файлов конфигурации в системе контроля версий.\\n"
+"Это может быть полезно при случайном сбросе конфигурации отдельных компонентов системы."
+
+#: ../installers/etckeeper:96
+msgid "File %s was not found."
+msgstr "Файл %s не найден."
+
+#: ../installers/etckeeper:107 ../installers/ntp:87
+msgid "Configuring %s …"
+msgstr "Конфигурация %s …"
+
+#: ../installers/iptables:84
+msgid "Iptables is an extremely flexible firewall utility built for Linux operating systems."
+msgstr "Iptables - утилита командной строки, является стандартным интерфейсом управления работой межсетевого экрана (брандмауэра) netfilter."
+
+#: ../installers/iptables:117
+msgid "Do you want to allow external ping of the server?"
+msgstr "Разрешить внешний ping сервера?"
+
+#: ../installers/iptables:150 ../installers/iptables:195
+msgid "Do you want to see the rules created for %s?"
+msgstr "Хотите посмотреть созданные правила для %s?"
+
+#: ../installers/iptables:152 ../installers/iptables:197
+msgid "HELP -- Press RETURN for more, or Q for exit"
+msgstr "HELP -- Press RETURN for more, or Q for exit"
+
+#: ../installers/iptables:166
+msgid "Do you want to create rules for %s?"
+msgstr "Создать правила для %s?"
+
+#: ../installers/mysql:87
+msgid "MySQL is an open-source relational database management system."
+msgstr "MySql - популярная, бесплатная реляционная СУБД."
+
+#: ../installers/mysql:100 ../installers/postgresql:100
+msgid "Come up and enter the root password for %s:"
+msgstr "Придумайте и введите пароль суперпользователя (root) для %s:"
+
+#: ../installers/mysql:100 ../installers/postgresql:100
+msgid "Without password %s is unsafe!"
+msgstr "Без пароля сервер %s будет уязвим!"
+
+#: ../installers/mysql:102 ../installers/postgresql:101
+msgid "%s server was not configured correctly. Operation canceled by the user."
+msgstr "Сервер %s не был настроен правильно. Операция прервана пользователем."
+
+#: ../installers/mysql:112 ../installers/postgresql:111
+msgid "Setting the root password for %s …"
+msgstr "Установка пароля root для %s …"
+
+#: ../installers/mysql:116
+msgid "MySql server"
+msgstr "Сервер MySql"
+
+#: ../installers/mysql:120 ../installers/phpmyadmin:193
+#: ../installers/postgresql:135
+msgid "Login"
+msgstr "Имя пользователя"
+
+#: ../installers/mysql:121 ../installers/phpmyadmin:194
+#: ../installers/postgresql:136
+msgid "Password"
+msgstr "Пароль"
+
+#: ../installers/ntp:94
+msgid "Do you want to test?"
+msgstr "Хотите провести тестирование?"
+
+#: ../installers/ntp:97
+msgid "Testing can take a long time.\\nIf you want to stop testing, press Q."
+msgstr "Тестирование может занять длительное время.\\n"
+"Если вы захотите прервать тестирование, нажмите клавишу Q."
+
+#: ../installers/ntp:136
+msgid "Testing completed."
+msgstr "Проверка завершена."
+
+#: ../installers/phpmyadmin:85
+msgid "phpMyAdmin is a free and open source tool written in PHP intended to handle the administration of MySQL with the use of a web browser."
+msgstr "Для управления MySql рекомендуется установить веб-панель - phpMyAdmin."
+
+#: ../installers/phpmyadmin:125
+msgid "Enter the address of the server %s:"
+msgstr "Введите адрес сервера %s:"
+
+#: ../installers/phpmyadmin:138
+msgid "Enter the port number of the server %s:"
+msgstr "Введите порт сервера %s:"
+
+#: ../installers/postgresql:87
+msgid "PostgreSQL is an object-relational database management system (ORDBMS) with an emphasis on extensibility and standards-compliance."
+msgstr "PostgreSQL - свободная, высокопроизводительная, легко масштабируемая объектно-реляционная система управления базами данных (СУБД)."
+
+#: ../installers/postgresql:131
+msgid "PostgreSQL server"
+msgstr "Сервер PostgreSQL"
+
+#: ../installers/sudo:84
+msgid "The system found a package %s. Installing is not required."
+msgstr "В системе найден пакет %s. Установка пакета не требуется."
+
+#: ../installers/sudo:98
+msgid "Would you like to configure %s?"
+msgstr "Хотите провести конфигурацию %s?"
+
+#: ../installers/sudo:105
+msgid "Sudo is a program that allows users to run programs with the security privileges of another user, by default the superuser."
+msgstr "Программа sudo предназначена для предоставления пользователям ограниченных прав суперпользователя, для выполнения задач по управлению сервером и сохранения приемлемого уровня безопасности."
+
+#: ../installers/sudo:108
+msgid "An error occurred while installing sudo. Continued impossible."
+msgstr "Произошла ошибка при установке sudo. Без sudo продолжать не имеет смысла."
+
+#: ../installers/sudo:113
+msgid "Configuring %s."
+msgstr "Конфигурация %s."
+
+#: ../installers/sudo:120 ../installers/sudo:156
+msgid "Adding %s to the %s …"
+msgstr "Добавление пользователя %s в группу %s …"
+
+#: ../installers/sudo:132
+msgid "Trusted users must be members of the sudo group."
+msgstr "Для полноценной работы с sudo, доверенные пользователи должны входить в группу sudo."
+
+#: ../installers/sudo:139
+msgid "Do you want to add a new member to the %s?"
+msgstr "Хотите добавить пользователя в группу %s?"
+
+msgid "Do you want to add the user %s to the group %s?"
+msgstr "Хотите добавить пользователя %s в группу %s?"
+
+#: ../installers/sudo:144
+msgid "Enter a username, which must be added to the %s:"
+msgstr "Введите имя пользователя, которого следует добавить в группу %s:"
+
+#: ../installers/sudo:175
+msgid "Error: User %s not found."
+msgstr "Ошибка: Пользователь %s не найден."
+
+#: ../installers/sudo:181
+msgid "Error: Username is required. Value cannot be empty."
+msgstr "Ошибка: Имя пользователя не может быть пустым."
+
+#: ../installers/xinetd:85
+msgid "On this server detected service inetd.\\n"
+"It is recommended to replace it with a new service - xinetd."
+msgstr "На сервере обнаружена устаревшая служба inetd.\\n"
+"Рекомендуется заменить её на xinetd."
+
+#: ../installers/xinetd:89
+msgid "Xinetd service is needed to manage the network connections and access control."
+msgstr "Служба xinetd необходима для управления сетевыми соединениями, контроля доступа, протоколирования и управления другими службами по расписанию."
+
+#: ../installers/xinetd:93
+msgid "Xinetd service is already installed. Additional action is not required."
+msgstr "Служба xinetd уже установлена. Дополнительные действия не требуются."
+
+#: ../tools/common:406
+msgid "Unknown error."
+msgstr "Неизвестная ошибка."
+
+#: ../tools/common:471
+msgid "Enter password:"
+msgstr "Введите пароль:"
+
+#: ../tools/common:485
+msgid "Confirm password:"
+msgstr "Введите пароль еще раз:"
+
+#: ../tools/common:498
+msgid "Password confirmation is incorrect."
+msgstr "Повтор пароля указан неверно."
+
+#: ../tools/common:506 ../tools/common:579 ../tools/common:653
+msgid "Do you want to cancel?"
+msgstr "Хотите прервать операцию?"
+
+#: ../tools/common:556
+msgid "Enter host:"
+msgstr "Введите хост:"
+
+#: ../tools/common:628
+msgid "Enter the recipient address. For example: example@example.org:"
+msgstr "Введите адрес получателя. Например, example@example.org:"
+
+#: ../tools/common:712
+msgid "[Y/n]"
+msgstr "[Д/н]"
+
+#: ../tools/common:716
+msgid "[y/N]"
+msgstr "[д/Н]"
+
+#: ../tools/common:718
+msgid "[Y/N]"
+msgstr "[Д/Н]"
+
+#: ../tools/common:770
+msgid "Enter Y or N!"
+msgstr "Ожидается ввод символов Y или N!"
+
+#: ../tools/common:818
+msgid "Error: Text is required."
+msgstr "Ошибка: Значение параметра text не может быть пустым."
+
+#: ../tools/common:922
+msgid "[ OK ]"
+msgstr "[ OK ]"
+
+#: ../tools/common:937
+msgid "[ Success ]"
+msgstr "[ Успех ]"
+
+#: ../tools/common:952
+msgid "[ Fail ]"
+msgstr "[ Ошибка ]"
+
+#: ../tools/common:968
+msgid "[ No found ]"
+msgstr "[ Не найдено ]"
+
+#: ../tools/common:984
+msgid "[ Cancelled ]"
+msgstr "[ Отменено ]"
+
+#: ../tools/common:1019
+msgid "Error: Label text is required."
+msgstr "Ошибка: Значение параметра text не может быть пустым."
+
+#: ../tools/common:1081
+msgid "Including %s …"
+msgstr "Подключение %s …"
+
+#: ../tools/common:1087
+msgid "Failed to include %s."
+msgstr "Не удалось подключить %s."
+
+#: ../tools/common:1151
+msgid "Insufficient permissions to execute the command. Try to run the script as root."
+msgstr "Недостаточно прав для выполнения операции. Попробуйте выполнить скрипт от имени суперпользователя."
+
+#: ../tools/common:1270
+msgid "Enter the IP of the server:"
+msgstr "Введите IP данного сервера:"
+
+#: ../tools/common:1278
+msgid "IP %s is correct?"
+msgstr "Адрес %s правильный?"
+
+#: ../tools/common:1283
+msgid "IP-address is required!"
+msgstr "Необходимо указать IP-адрес этого сервера!"
+
+#: ../tools/common:1324
+msgid "Parametes is required."
+msgstr "Отсутствуют параметры. Продолжение невозможно."
+
+#: ../tools/common:1592 ../tools/common:1607
+msgid "Key is required."
+msgstr "Необходимо указать ключ."
+
+#: ../tools/common:1596 ../tools/common:1611
+msgid "File '%s' not found."
+msgstr "Файл '%s' не найден."
+
+#: ../tools/common:1674
+msgid "The directory structure of HTAN is damaged!"
+msgstr "Структура каталогов HTAN повреждена!"
+
+#: ../tools/common:1680
+msgid "Required BASH v4.0 or later!"
+msgstr "Требуется версия BASH не ниже 4.0!"
+
+#: ../tools/config:116 ../tools/config:271 ../tools/config:339
+#: ../tools/config:557
+msgid "No access to the file %s."
+msgstr "Отсутствует доступ к файлу %s."
+
+#: ../tools/config:122 ../tools/config:277 ../tools/config:350
+#: ../tools/config:482
+msgid "Key is required. Value can not be empty."
+msgstr "Необходимо указать имя параметра. Значение не может быть пустым."
+
+#: ../tools/config:154 ../tools/config:372 ../tools/config:579
+msgid "File %s"
+msgstr "Файл %s"
+
+#: ../tools/config:166 ../tools/config:388
+msgid "[ Updated ]"
+msgstr "[ Обновлено ]"
+
+#: ../tools/config:172 ../tools/config:401 ../tools/config:408
+msgid "[ Added ]"
+msgstr "[ Добавлено ]"
+
+#: ../tools/config:345 ../tools/config:477
+msgid "Section name is required. Value can not be empty."
+msgstr "Необходимо указать имя секции. Значение не может быть пустым."
+
+#: ../tools/config:563
+msgid "Marker name is required. Value can not be empty."
+msgstr "Необходимо указать имя маркера. Значение не может быть пустым."
+
+#: ../tools/package:59
+msgid "Including the common …"
+msgstr "Подключение common …"
+
+#: ../tools/package:125 ../tools/package:210 ../tools/package:247
+msgid "You must specify the name of the package in the first parameter!"
+msgstr "Ошибка: Необходимо указать название пакета в первом параметре!"
+
+#: ../tools/package:132
+msgid "Installing %s is not required"
+msgstr "Установка %s не требуется."
+
+#: ../tools/package:165 ../tools/package:187
+msgid "Installing %s …"
+msgstr "Установка %s …"
+
+#: ../tools/package:169
+msgid "Can not install %s. Please try to install manually."
+msgstr "Не удалось установить %s. Попробуйте выполнить операцию вручную."
+
+#: ../tools/package:171 ../tools/service:97
+msgid "For details, see the log file: %s."
+msgstr "Для получения подробностей, ознакомьтесь с файлом журнала %s."
+
+#: ../tools/package:173 ../tools/service:99
+msgid "Last log records:"
+msgstr "Последние записи журнала:"
+
+#: ../tools/package:280
+msgid "Updating the package cache …"
+msgstr "Обновление информации о пакетах …"
+
+#: ../tools/package:302
+msgid "Updating packages …"
+msgstr "Обновление пакетов …"
+
+#: ../tools/service:88
+msgid "%s is already running."
+msgstr "Служба %s уже запущена."
+
+#: ../tools/service:92
+msgid "Starting the service %s …"
+msgstr "Запуск службы %s …"
+
+#: ../tools/service:95
+msgid "Unable to start the service %s. Try to perform the operation manually."
+msgstr "Не удалось запустить %s. Попробуйте выполнить операцию вручную."
+
+#: ../tools/service:131 ../tools/service:133
+msgid "Stopping the service %s …"
+msgstr "Остановка службы %s …"
+
+#: ../tools/service:184
+msgid "Error: Service name is required!"
+msgstr "Ошибка: Необходимо указать имя службы!"
+
+#: ../tools/web:104 ../tools/web:194
+msgid "Unable to configure %s. The template file is not specified."
+msgstr "Невозможно настроить %s. Файл шаблона не указан."
+
+#: ../tools/web:110 ../tools/web:200
+msgid "Unable to configure %s. The hostname is not specified."
+msgstr "Невозможно настроить %s. Имя хоста не указано."
+
+msgid "Site %s already exists."
+msgstr "Сайт %s уже существует."
+
+msgid "Do you want to overwrite the configuration file of the site?"
+msgstr "Хотите перезаписать файл конфигурации сайта?"
+
+#: ../tools/web:136 ../tools/web:226
+msgid "Configure %s with %s …"
+msgstr "Добавление сайта %s в %s …"
+
+#: ../tools/web:155 ../tools/web:245
+msgid "Activation %s …"
+msgstr "Активация сайта %s …"
+
+#: ../tools/web:280
+msgid "If the current server to test, for the convenience can be set the %s in the file /etc/hosts. It allows to access the site through a browser."
+msgstr "Если этот сервер используется для тестирования и адрес %s не является настоящим, для удобства можно прописать его в файле /etc/hosts. Это позволит обращаться к сайту через браузер."
+
+#: ../tools/web:282
+msgid "Do not do this if the server does not for tests!"
+msgstr "Но не стоит этого делать, если сервер настоящий/боевой!"
+
+#: ../tools/web:291
+msgid "Are you want add %s to the /etc/hosts?"
+msgstr "Хотите добавить %s в /etc/hosts?"
+
+#: ../tools/web:300
+msgid "Adding the hostname to the /etc/hosts …"
+msgstr "Добавление записи в /etc/hosts …"
+
+#: ../tools/web:304
+msgid "On the client machines, you can also associate the %s with the %s. For Windows, the hosts file can be found in the folder C:\\Windows\\System32\\drivers\\etc."
+msgstr "На клиентских машинах вы также можете ассоциировать %s с адресом сервера %s, чтобы работать с сайтом. Если у вас Windows, то файл hosts можно найти в папке C:\\Windows\\System32\\drivers\\etc."
+
+#: ../tools/web:306
+msgid "Once testing is complete, to avoid problems, do not forget to remove %s of hosts on the server and clients."
+msgstr "Если хост %s в будущем станет полноценным и доступным для внешнего мира, не забудьте удалить запись из ваших файлов hosts (на сервере и у клиентов), чтобы избежать путаницы."
+
+msgid "Time synchronization …"
+msgstr "Синхронизация времени …"
+
+msgid "Press any key to continue..."
+msgstr "Нажмите любую клавишу для продолжения..."
+
+msgid "Apache Subversion (often abbreviated SVN, after the command name svn) is a software versioning and revision control system."
+msgstr "Subversion - свободная централизованная система управления версиями."
+
+msgid "On this server is detected the package %s."
+msgstr "На сервере обнаружен пакет %s."
+
+msgid "Creating group %s …"
+msgstr "Создание группы %s …"
+
+msgid "Creating a folder for the repositories …"
+msgstr "Создание папки для хранилищ …"
+
+msgid "Do you want to add a new project in SVN?"
+msgstr "Хотите добавить новый проект в SVN?"
+
+msgid "Enter a project name (folder name: English, wihout spaces):"
+msgstr "Введите название проекта (имя папки: на английском, без пробелов):"
+
+msgid "Creating %s …"
+msgstr "Создание %s …"
+
+msgid "Getting %s …"
+msgstr "Получение %s …"
+
+msgid "Downloading %s …"
+msgstr "Загрузка %s …"
+
+msgid "The project with the same name already exists."
+msgstr "Проект с таким названием уже существует."
+
+msgid "Enabling of the module %s …"
+msgstr "Включение модуля %s …"
+
+msgid "List of users to access the server is located in a file:"
+msgstr "Список пользователей, которым разрешен доступ к серверу, расположен в файле:"
+
+msgid "Use the following command to add a new user:"
+msgstr "Используйте следующую команду для добавления новых пользователей:"
+
+msgid "Creating a folder %s …"
+msgstr "Создание мамки %s …"
+
+msgid "Set permissions on the %s …"
+msgstr "Установка разрешений для %s …"
+
+msgid "Creating the necessary files …"
+msgstr "Создание необходимых файлов …"
+
+msgid "The parameter 'name' is required. Value cannot be empty."
+msgstr "Необходимо указать значение параметра name.\\nЗначение не может быть пустым."
+
+msgid "Do you want to add an administrator to the SVN server?"
+msgstr "Хотите добавить администратора сервера SVN?"
+
+msgid "Enter a username:"
+msgstr "Введите имя пользователя:"
+
+msgid "Failed to create the user."
+msgstr "Не удалось создать пользователя."
+
+msgid "Accounts:"
+msgstr "Учетные записи:"
+
+msgid "Activation is not required."
+msgstr "Активация не трубуется."
+
+msgid "Come up and enter a password for %s:"
+msgstr "Придумайте и введите пароль для %s:"
+
+msgid "Do you want to set a new password to the user %s?"
+msgstr "Хотите поменять пароль у пользователя %s?"
+
+msgid "Updating %s …"
+msgstr "Обновление %s …"
+
+msgid "Recommended to install %s."
+msgstr "Рекомендуется установить %s."
+
+msgid "Check for updates %s."
+msgstr "Проверьте обновления %s."
+
+msgid "%s not found."
+msgstr "%s не найден(а)."
+
+msgid "To manage the server, you can install the free web panel SmallServerAdmin."
+msgstr "Для управления сервером можно установить бесплатную веб-панель SmallServerAdmin."
+
+msgid "Probably, SmallServerAdmin already installed."
+msgstr "Вероятно, панель SmallServerAdmin уже установлена."
+
+msgid "Do you want to install the server control panel?"
+msgstr "Установить панель управления сервером?"
+
+msgid "Do you want to add the permission to access the panel?"
+msgstr "Хотите добавить разрешение на доступ к панели?"
+
+msgid "Access to the panel is not possible without login and password?\\nTo grant permission to access the panel, run the following command:\\nsudo htpasswd -dcb %s usersnameToAccess userPassword"
+msgstr "Доступ к панели будет невозможен без ввода логина и пароля.\\nЧтобы предоставить разрешение на доступ к панели, выполните следующую команду:\\nsudo htpasswd -dcb %s usersname password\\n, где usersname - имя пользователя, password - пароль."
+
+msgid "The panel will work with the server via SSH.\\nAll commands will be executed through sudo."
+msgstr "Панель будет работать с сервером по SSH.\\nВсе команды будут выполняться через sudo."
+
+msgid "Enter a username to create:"
+msgstr "Введите имя нового пользователя:"
+
+msgid "User %s already exists."
+msgstr "Пользователь %s уже существует."
+
+msgid "For safety reasons, it is recommended to create a new user for the panel."
+msgstr "В целях безопасности, рекомендуется создать нового пользователя для панели."
+
+msgid "Do you still want to use the user %s?"
+msgstr "Вы все еще хотите использовать пользователя %s?"
+
+msgid "Adding permissions for %s …"
+msgstr "Добавление разрешения для %s …"
+
+msgid "Setting the password for %s …"
+msgstr "Установка пароля для %s …"
+
+msgid "Do you want to try again?"
+msgstr "Хотите попробовать еще раз?"
+
+msgid "The user %s is a member of %s."
+msgstr "Пользователь %s состоит в группе %s."
+
+msgid "Daemon is designed to start and stop processes, and execution of any commands.\\nMainly HTAN.Runner created for fastcgi-mono-server automatic start, but it can also be used for other purposes."
+msgstr "Служба HTAN.Runner предназначен для запуска и остановки процессов, выполнения различных команд.\\nГлавным образом HTAN.Runner создавался для автоматического запуска fastcgi-mono-server, но его также можно использовать и для других целей."
+
+msgid "Additional action is not required."
+msgstr "Дополнительные действия не требуются."
+
+msgid "Extraction …"
+msgstr "Извлечение …"
+
+msgid "Extraction %s …"
+msgstr "Извлечение %s …"
+
+msgid "Daemon registration …"
+msgstr "Регистрация службы …"
+
+msgid "Preparing %s …"
+msgstr "Подготовка %s …"
+
+msgid "Preparing …"
+msgstr "Подготовка …"
+
+msgid "Removing %s …"
+msgstr "Удаление %s …"
+
+msgid "Copying …"
+msgstr "Копирование …"
+
+msgid "Copying %s …"
+msgstr "Копирование %s …"
+
+msgid "You can add site to access the %s, or do it later, when installing SmallServerAdmin. Recommend using SmallServerAdmin."
+msgstr "Можно создать сайт для доступа к %s сейчас, либо сделать это позже, в процессе установки SmallServerAdmin. Рекомендуется использовать SmallServerAdmin."
+
+msgid "To increase security it is recommended to restrict access to the panel by IP."
+msgstr "Для повышения уровня безопасности рекомендуется ограничить доступ к панели по IP."
+
+msgid "Do you want to restrict access by IP?"
+msgstr "Хотите ограничить доступ к панели сейчас?"
+
+msgid "Enter a network or address for allow access:"
+msgstr "Введите адрес или сеть, которым должен быть разрешен доступ:"
+
+msgid "Do you want to add another address?"
+msgstr "Хотите добавить еще один адрес?"

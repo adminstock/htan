@@ -1,0 +1,25 @@
+#!/bin/bash
+
+{
+  echo -n "Including the common …"
+  source "$(cd $(dirname $0) && pwd)/../tools/common" && OK
+} || {
+  echo ""
+  echo -e "\033[1;31mFailed to include the common.\033[0m"
+  exit 1
+}
+
+t_all_name="$(basename "$0")"
+t_all_path="$(cd "$(dirname "$0")" && pwd)"
+
+cd "$t_all_path"
+
+for t_all_f in $t_all_path/*; do
+  if [[ "$(basename "$t_all_f")" == "$t_all_name" ]]; then
+    continue
+  fi
+
+  source "$t_all_f"
+
+  PressAnyKey
+done

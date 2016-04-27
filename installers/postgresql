@@ -1,0 +1,143 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of PostgreSQL.
+#
+# USAGE:
+#   postgresql [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   23.09.2015
+#
+# REVISION:
+#   18.10.2015
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   PostgreSQL
+#
+# HTAN_CATEGORY:
+#   Database
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "postgres" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "postgres" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+declare HTAN_PGSQL_ROOT_PASSWORD=""
+
+InstallPostgreSQL()
+{
+  # http://www.postgresql.org/download/linux/debian/
+
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=9.4"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "PostgreSQL" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # PostgreSQL - свободная, высокопроизводительная, легко масштабируемая объектно-реляционная система управления базами данных (СУБД).
+  Message "$(gettext "PostgreSQL is an object-relational database management system (ORDBMS) with an emphasis on extensibility and standards-compliance.")"
+  Line
+
+  if ! PackageInstall postgresql -confirm=true -title="PostgreSQL" $tested; then
+    # Сервер PostgreSQL не был установлен.
+    Message "$(gettext "Installation canceled by the user.")"
+    return
+  fi
+
+  Line
+
+  # Придумайте и введите пароль администратора PostgreSQL:
+  # Без пароля сервер PostgreSQL будет уязвим!
+  if ! EnterPassword -t="$(printf "$(gettext "Come up and enter the root password for %s:")" "PostgreSQL")" -w="$(printf "$(gettext "Without password %s is unsafe!")" "PostgreSQL")" -o; then
+    Message "$(gettext "%s server was not configured correctly. Operation canceled by the user.")" "PostgreSQL"
+    return
+  fi
+
+  Line
+
+  HTAN_PGSQL_ROOT_PASSWORD="$HTAN_PASSWORD"
+
+  local c="su - postgres -c \"psql -c \\\"ALTER USER postgres WITH PASSWORD '$HTAN_PGSQL_ROOT_PASSWORD';\\\"\" >> $HTAN_LOG 2>&1"
+  # Установка пароля администратора PostgreSQL …
+  Execute -c="$c" -m="$(gettext "Setting the root password for %s …")" -a="PostgreSQL" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+  # /etc/postgresql/9.4/main/pg_hba.conf
+
+  # /etc/postgresql/9.4/main/postgresql.conf
+  # listen_addresses = '127.0.0.1, $HTAN_SERVER_IP'
+  # port = 5432
+  # max_connections = 100
+  # password_encryption = on
+  # shared_buffers = 128MB
+  # temp_buffers = 8MB
+  # work_mem = 4MB
+  # maintenance_work_mem = 64MB
+  # autovacuum_work_mem = -1
+  # max_stack_depth = 2MB
+  # dynamic_shared_memory_type = posix
+  # temp_file_limit = -1
+  # max_files_per_process = 1000
+  # max_worker_processes = 8
+
+  ServerInfo "$(gettext "PostgreSQL server"):\n"
+  ServerInfo "--------------------------------------------\n"
+  ServerInfo "$(gettext "Host"): localhost\n" # $HTAN_SERVER_IP
+  ServerInfo "$(gettext "Port"): 5432\n"
+  ServerInfo "$(gettext "Login"): postgres\n"
+  ServerInfo "$(gettext "Password"): $HTAN_PGSQL_ROOT_PASSWORD\n"
+  ServerInfo "--------------------------------------------\n\n"
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallPostgreSQL

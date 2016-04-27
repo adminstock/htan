@@ -1,0 +1,171 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of HTAN.Runner.
+#
+# USAGE:
+#   htan-runner [--debug] [--version] [--help] [--nocolor]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   13.04.2016
+#
+# REVISION:
+#   21.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   HTAN.Runner - fastcgi-mono-server daemon
+#
+# HTAN_CATEGORY:
+#   Services
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "htan-runner" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "htan-runner" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallHTANRunner()
+{
+  local htan_runner_lib="/usr/lib/htan-runner"
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "HTAN.Runner" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # Демон HTAN.Runner предназначен для запуска и остановки процессов, выполнения различных команд.\nГлавным образом HTAN.Runner создавался для автоматического запуска fastcgi-mono-server, но его также можно использовать и для других целей.
+  Message "$(gettext "Daemon is designed to start and stop processes, and execution of any commands.\nMainly HTAN.Runner created for fastcgi-mono-server automatic start, but it can also be used for other purposes.")"
+  Line
+
+  if [[ -f "$htan_runner_lib/HTAN.Runner.exe" ]]; then
+    Message "$(gettext "On this server is already installed %s.")" "HTAN.Runner"
+    Message "$(gettext "Additional action is not required.")"
+    return
+  fi
+
+  if ! Confirm "$(gettext "Do you want to install %s?")" "HTAN.Runner" -yes; then
+    Message "$(gettext "Operation canceled by the user.")"
+    return
+  fi
+
+  Line
+
+  # mono
+  if ! PackageExists mono-devel; then
+    if [[ ! -f "$HTAN_PATH_INSTALLERS/mono" ]]; then
+      Message "$(gettext "%s not found.")" "$HTAN_PATH_INSTALLERS/mono" -s="$DEF_STYLE_ERROR"
+      return 1
+    else
+      sudo chmod u=rwx,g=rx "$HTAN_PATH_INSTALLERS/mono" >> $HTAN_LOG 2>&1
+      sudo "$HTAN_PATH_INSTALLERS/mono" --confirm --lang="$HTAN_LANG"
+      Line
+    fi
+  fi
+
+  if ! PackageExists mono-devel; then
+    Message "$(gettext "%s is required.")" "mono" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  local temp_file="/tmp/htan-runner.zip"
+
+  if [[ -f "$temp_file" ]]; then
+    Execute -c="rm $temp_file >> $HTAN_LOG 2>&1"
+  fi
+
+  # todo: get and parse url of latest release
+
+  # download file
+  local command="wget -O $temp_file 'https://github.com/adminstock/htan-runner/releases/download/v1.0.3/Binnary.zip' >> $HTAN_LOG 2>&1"
+  Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="HTAN.Runner" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  Line
+
+  # create folder for HTAN.Runner
+  if [[ ! -d "$htan_runner_lib" ]]; then
+    Execute -c="mkdir -p $htan_runner_lib >> $HTAN_LOG 2>&1" -m="$(gettext "Creating %s …")" -a="$htan_runner_lib" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  if [[ ! -d "/etc/htan/app-available" ]]; then
+    Execute -c="mkdir -p /etc/htan/app-available >> $HTAN_LOG 2>&1" -m="$(gettext "Creating %s …")" -a="/etc/htan/app-available" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  if [[ ! -d "/etc/htan/app-enabled" ]]; then
+    Execute -c="mkdir -p /etc/htan/app-enabled >> $HTAN_LOG 2>&1" -m="$(gettext "Creating %s …")" -a="/etc/htan/app-enabled" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  # check unzip
+  if ! PackageExists unzip; then
+    PackageInstall unzip -confirm=false
+  fi
+
+  # extract files
+  Execute -c="unzip $temp_file -d $htan_runner_lib >> $HTAN_LOG 2>&1" -m="$(gettext "Extraction …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  Line
+
+  # remove temp file
+  Execute -c="rm $temp_file"
+
+  # remove old files
+  if [[ -f "/etc/init.d/htan-runner" ]]; then
+    Execute -c="update-rc.d -f htan-runner remove >> $HTAN_LOG 2>&1; rm /etc/init.d/htan-runner >> $HTAN_LOG 2>&1"
+  fi
+
+  # daemon registration
+  Execute -c="cp $htan_runner_lib/htan-runner /etc/init.d/htan-runner >> $HTAN_LOG 2>&1 && chmod +x /etc/init.d/htan-runner >> $HTAN_LOG 2>&1 && update-rc.d htan-runner defaults >> $HTAN_LOG 2>&1" -m="$(gettext "Daemon registration …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+  # pev for version number extraction
+  if ! PackageExists pev; then
+    PackageInstall pev -confirm=false
+  fi
+
+  HTAN_INSTALLED+=("HTAN.Runner v$(sudo pev -p $htan_runner_lib/HTAN.Runner.exe)")
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallHTANRunner

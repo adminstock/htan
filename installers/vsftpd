@@ -1,0 +1,399 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of vsftpd.
+#
+# USAGE:
+#   vsftpd [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, xinetd, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.2
+#
+# CREATED:
+#   16.09.2015
+#
+# REVISION:
+#   17.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Very Secure FTP Daemon (vsftpd)
+#
+# HTAN_CATEGORY:
+#   FTP Server
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "vsftpd" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "vsftpd" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallVsftpd()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=3.0.2"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "FTP Server" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  local vsftp_exists=$(PackageExists vsftpd && echo true || echo false)
+
+  if [[ $vsftp_exists == true ]]; then
+    # На сервере обнаружен Very Secure FTP Daemon (vsftpd).
+    Message "$(gettext "On this server is detected Very Secure FTP Daemon (vsftpd).")"
+    # Рекомендуется провести настройку сервера FTP.
+    Message "$(gettext "It is recommended to configure the server FTP.")"
+    Line
+    # Хотите провести конфигурацию (файл настроек будет перезаписан)?
+    if ! Confirm "$(gettext "Would you like to configure? (the current settings will be overwritten)")" -yes; then
+      # Операция прервана пользователем.
+      Message "$(gettext "Operation canceled by the user.")"
+      return
+    fi
+    Line
+  fi
+
+  # add the source of packages, if needed
+  if ! $(grep -q http://ftp.us.debian.org/debian /etc/apt/sources.list); then
+    if [[ "${SYS_OS_VERSION:0:1}" == '7' ]]; then
+      # todo
+      Message "Skip for Debian 7"
+    else
+      sudo echo "deb http://ftp.us.debian.org/debian jessie main contrib" >> /etc/apt/sources.list
+      # sudo apt-get update
+      PackageUpdate
+    fi
+    Line
+  fi
+
+  if [[ $vsftp_exists != true ]]; then
+    # check the vsftpd version on packages server
+    local version=$(PackageVersion vsftpd true)
+
+    if false; then # disabled
+      if (( $version < 3 )); then
+        # ВНИМАНИЕ: Версия vsftpd $version может быть устаревшей.\n
+        # Рекомендуется использовать программу не ниже версии 3.0.2, дабы избежать проблем с доступом к FTP.
+        Message "$(gettext "WARNING: The version %s of the vsftpd might be outdated.\nRecommended to use the version not lower than 3.0.2.")" "$version" "$DEF_STYLE_WARNING"
+        Line
+        # Нажмите Y, чтобы попробовать установить версию %s.\n
+        # Для отмены установки, нажмите N.
+        Message "$(gettext "Press Y, to try to install version %s.\nTo cancel, press N.")" "$version" "$DEF_STYLE_QUESTION"
+        if ! Confirm -yes; then
+          Line
+          Message "$(gettext "Done.")"
+          return
+        fi
+        Line
+      fi
+    fi
+
+    if ! PackageInstall vsftpd -confirm=true -title="Very Secure FTP Daemon" $tested; then
+      return
+    fi
+  fi
+
+  Line
+
+  ServiceStop vsftpd
+
+  # config file path
+  local config=/etc/vsftpd.conf
+
+  # questions
+  local ftpd_banner xferlog_enable listen_ipv6
+  local pasv_enable port_enable
+
+  Line
+
+  # При подключении к FTP серверу можно вывести в клиент пользователя текст приветствия.\n
+  # Текст приветствия - небольшое сообщение или фраза.\n
+  # Например, текст может быть следующим: Welcome to my FTP!
+  Message "$(gettext "When users connect to the FTP server to the client can display a welcoming message. For example: Welcome to my FTP!")"
+  Line
+  # Хотите ввести текст приветствия?
+  if Confirm "$(gettext "Do you want to enter a welcoming message?")" -no; then
+    # Введите строку приветствия. Используйте только английские буквы:
+    Message "$(gettext "Enter the welcoming message. Use only English letters:")"
+    Read ftpd_banner
+  fi
+
+  Line
+
+  # Хотите вести учет подключений к серверу FTP?
+  if Confirm "$(gettext "Do you want to to log connections to the server FTP?")" -yes; then
+    xferlog_enable="YES"
+  else
+    xferlog_enable="NO"
+    SetValue2 $config xferlog_enable NO
+  fi
+
+  Line
+
+  # Разрешить использование IPv6?
+  if Confirm "$(gettext "Do you want to allow IPv6?")" -no; then
+    listen_ipv6="YES"
+  else
+    listen_ipv6="NO"
+  fi
+
+  Line
+
+  # FTP-сервер может работать в пассивном и/или активном режиме.\n
+  # Активный режим безопаснее для сервера.\n
+  # Пассивный режим безопаснее для клиента.\n
+  # Рекомендуется включить оба режима.
+  Message "$(gettext "FTP-server can operate in passive and/or active mode.\nActive mode for the server more secure.\nPassive mode is more secure for users and can be most preferred.\nRecommended to enable both modes.")"
+
+  Line
+
+  # passive mode
+  # Разрешить пассивный режим?
+  if Confirm "$(gettext "Allow passive mode?")" -yes; then
+    pasv_enable="YES"
+
+    Line
+    # Для работы пассивного режима будут использоваться порты от %s до %s.\n
+    # Если этого будет не хватать, можно расширить диапазон в файле %s.
+    Message "$(gettext "For the passive mode will be used port numbers range from %s to %s.\nYou can change this in the configuration file: %s.")" "40 000" "40 500" "$config"
+  else
+    SetValue2 $config pasv_enable NO
+  fi
+
+  Line
+
+  # active mode
+  if [[ "$pasv_enable" == "NO" ]]; then
+    port_enable="YES"
+  else
+    # Разрешить активный режим?
+    if Confirm "$(gettext "Allow active mode?")" -yes; then
+      port_enable="YES"
+    else
+      port_enable="NO"
+    fi
+  fi
+
+  # config vsftpd
+
+  # running through (x)inetd
+  SetValue2 $config listen NO
+
+  # deny access to anonymous users
+  SetValue2 $config anonymous_enable NO
+  SetValue2 $config anon_upload_enable NO
+  SetValue2 $config anon_mkdir_write_enable NO
+  SetValue2 $config anon_other_write_enable NO
+
+  # allowing access for local users
+  SetValue2 $config local_enable YES
+
+  # restricting access only to home directories
+  SetValue2 $config chroot_local_user YES
+
+  if [[ "${SYS_OS_VERSION:0:1}" != '7' ]]; then
+    SetValue2 $config allow_writeable_chroot YES
+  fi
+
+  # Максимальная скорость передачи данных для зарегистрированных пользователей. 
+  # По-умолчанию = 0 (неограниченная).
+  # SetValue2 $config local_max_rate 0
+
+  # write permission
+  SetValue2 $config write_enable YES
+
+  # сообщения при смене директории
+  # messages when changing directories
+  SetValue2 $config dirmessage_enable YES
+
+  # welcome message
+  SetValue2 $config ftpd_banner "$welcome"
+
+  # logging
+  SetValue2 $config xferlog_enable $xferlog_enable
+  if [[ "$xferlog_enable" == "YES" ]]; then
+    SetValue2 $config xferlog_file /var/log/vsftpd.log
+  fi
+
+  # запрет регистрации всех соединений (для экономии)
+  # prohibition of the registration of all connections (to save space)
+  SetValue2 $config log_ftp_protocol NO
+
+  # соединения через порт 20 (в дополнение к 21)
+  # allow connections through port number 20
+  SetValue2 $config connect_from_port_20 YES
+
+  # IPv6
+  SetValue2 $config listen_ipv6 $listen_ipv6
+
+  # Таймаут сессии
+  # SetValue2 $config idle_session_timeout 600
+
+  # Таймаут передачи данных
+  # SetValue2 $config data_connection_timeout 120
+
+  # Предоставлять вход через Pluggable Authentication Modules (PAM)
+  # SetValue2 $config pam_service_name vsftpd
+
+  # passive mode
+  SetValue2 $config pasv_enable $pasv_enable
+  if [[ "$pasv_enable" == "YES" ]]; then
+    SetValue2 $config pasv_min_port 40000
+    SetValue2 $config pasv_max_port 40500
+  fi
+
+  # active mode
+  SetValue2 $config port_enable $port_enable
+
+  # максимальное количество клиентов, которые могут быть подключены
+  # SetValue2 $config max_clients 10
+
+  # максимальное количество соединений с одного ip
+  # SetValue2 $config max_per_ip 10
+
+  # http://www.cyberciti.biz/tips/understanding-linux-unix-umask-value-usage.html
+  # http://www.webune.com/forums/umask-calculator.html
+  # https://ru.wikipedia.org/wiki/Umask
+  # note: важен порядок
+  # маска на создаваемые локальными пользователями файлы и папки
+  SetValue2 $config local_umask 002 # 775
+  # права для файлов, с учетом маски
+  SetValue2 $config file_open_mode 0642 # 640
+  # // --
+
+  # пользователи из списка vsftpd.user_list блокируются перед запросом пароля
+  # SetValue2 $config userlist_enable YES
+
+  # скрываем настоящих владельцев файлов на ftp
+  # SetValue2 $config hide_ids YES
+
+  # secure_chroot_dir
+
+  SetValue2 $config use_localtime YES
+
+  # ftp access for users without shell
+  # Разрешение доступа к FTP без shell …
+  Message "$(gettext "Allowing access to the FTP without shell …")" -n
+  if ! $(grep -q "^/bin/false$" "/etc/shells"); then
+    $(echo /bin/false | sudo tee -a /etc/shells > /dev/null) && OK || Fail
+  else
+    OK
+  fi
+
+  Line
+
+  # config xinetd
+  # Создание xinetd для vsftpd …
+  Execute "sudo cp $HTAN_PATH_DATA/xinetd.d/vsftpd /etc/xinetd.d/vsftpd 2> /dev/null; wait" -m="$(gettext "Configuring xinetd for vsftpd …")"
+  # todo: need to modify the logic
+  if [[ -f /etc/xinetd.d/vsftpd ]]; then 
+    if [[ -z "$HTAN_SERVER_IP" ]]; then
+      GetServerIP
+    fi
+    # Message "Добавление адреса $HTAN_SERVER_IP ..." -n
+    # Execute 'sudo sed -i "s/\{ip\}/$HTAN_SERVER_IP/" /etc/xinetd.d/vsftpd 2> /dev/null; wait'
+    ReplaceMarker /etc/xinetd.d/vsftpd "ip" "$HTAN_SERVER_IP"
+  else
+    # Не удалось создать конфигурацию xinetd для vsftpd.
+    Message "$(gettext "Failed to create the configuration of xinetd for vsftpd.")" -s="$DEF_STYLE_ERROR"
+  fi
+
+  ServiceRestart xinetd
+
+  Line
+
+  # testing
+  # Рекомендуется провести тестирование FTP, путем проверки 21 порта.\n
+  # Процесс тестирования может занять несколько минут, пока не будет инициализирована конфигурация FTP-сервера в xinetd.
+  Message "$(gettext "It is recommended to test the FTP.\nThe testing process can take several minutes.")"
+  Line
+  # Хотите провести тестирование FTP?
+  if Confirm "$(gettext "Do you want to test FTP?")" -yes; then
+    Line
+    # Тестирование FTP …
+    Message "$(gettext "Testing %s …")" "FTP" -n
+
+    # $(netstat -npl | grep -q :21\s*)
+    local has_ftp=1
+    local progress="."
+    local elapsed=0
+
+    stty -echo
+
+    while [[ $has_ftp == 1 ]]; do
+      Label "$(printf "%3s\n" "$progress") " -n -s="$DEF_STYLE_WAITING"
+      progress="$progress."
+      if ((${#progress}>3)); then 
+        progress=".";
+        #Label "  $progress " -n -s="$DEF_STYLE_WAITING"
+      fi
+      sleep 1
+      ((elapsed++))
+      if ! (($elapsed % 5)); then
+        $(netstat -npl | grep -q :21\s*)
+        has_ftp=$?
+        # todo: change it
+        if [[ $has_ftp == 0 ]]; then 
+          OK
+        fi
+      elif (($elapsed > 120)); then
+        Fail
+        break
+      fi
+    done
+
+    # stty echo
+    Unblock
+
+    # PackageInstall ftp false
+    # ftp 127.0.0.1
+  fi
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallVsftpd

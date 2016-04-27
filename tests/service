@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Tests for /../tools/service
+
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    echo -n "Including the common …"
+    source "$(cd $(dirname $0) && pwd)/../tools/common" && OK
+  } || {
+    echo ""
+    echo -e "\033[1;31mFailed to include the common.\033[0m"
+    exit 1
+  }
+fi
+
+IncludeTool service
+
+Line "#"
+Message "# Testing the module to work with a services" -s="$DEF_STYLE_HEADER"
+Line "#"
+
+Message "Single"
+Line
+
+ServiceStop nginx 
+ServiceStop apache2
+
+ServiceStart nginx 
+ServiceStart apache2
+
+ServiceRestart nginx 
+ServiceRestart apache2
+
+Line
+Message "Group"
+Line
+
+ServiceStop nginx apache2
+
+ServiceStart nginx apache2
+
+ServiceRestart nginx apache2
+
+Line
+Message "Complete."

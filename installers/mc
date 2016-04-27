@@ -1,0 +1,93 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation of Midnigth Commander.
+#
+# USAGE:
+#   mc [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   23.09.2015
+#
+# REVISION:
+#   15.10.2015
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   GNU Midnight Commander (mc)
+#
+# HTAN_CATEGORY:
+#   Tools
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "mc" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "mc" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service
+
+InstallMC()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=4.8.13"
+  fi
+  # // --
+
+  Line =
+  # # Установка Midnigth Commander.
+  Message "$(gettext "# Installing %s.")" "Midnigth Commander" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # Midnigth Commander - это файловый менеджер. Программа сделана в стиле FAR/Norton и может быть удобна при миграции с Windows систем.
+  Message "$(gettext "Midnight Commander is a visual file manager.")"
+  Line
+
+  PackageInstall mc -confirm=true -title="Midnigth Commander" $tested
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallMC

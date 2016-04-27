@@ -1,0 +1,197 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of SSH Server.
+#
+# USAGE:
+#   ssh [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   23.09.2015
+#
+# REVISION:
+#   27.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Secure SHell (openssh)
+#
+# HTAN_CATEGORY:
+#   SSH Server
+#
+# HTAN_OPTIONAL:
+#   false
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "ssh" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "ssh" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallSSH()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=6.7"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Configuring %s.")" "SSH" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # Протокол SSH (Secure SHell) необходим для удаленного управления сервером через терминал.
+  Message "$(gettext "Secure Shell (SSH) is a cryptographic (encrypted) network protocol to allow remote login and other network services to operate securely over an unsecured network.")"
+
+  Line
+
+  PackageInstall openssh-server -confirm=false -title="OpenSSH" $tested
+
+  local config=/etc/ssh/sshd_config
+  local port="$(GetValue $config Port)" set_port=false
+
+  if [[ -z "$port" ]]; then
+    port=22
+  fi
+
+  local need_port=false;
+
+  if [[ "$port" == 22 ]]; then
+    Line
+    # По умолчанию для подключения к серверу SSH используется порт 22.\nДля безопасности рекомендуется изменить номер порта, поскольку стандартный порт будет подвергаться постоянным атакам.\nЖелательно, чтобы порт был свободен и не пересекался с другими службами сервера.\nОзнакомиться со списком стандартных портов можно в Википедиа:\nhttps://ru.wikipedia.org/wiki/Список_портов_TCP_и_UDP\nВы можете выбрать любой порт, который вам понравится.
+    Message "$(gettext "By default, to connect to an SSH server uses port 22.\nTo increase security it is recommended to change the port number to any free port.")"
+    Line
+    need_port=true
+  fi
+
+  if ! $need_port; then
+    # С текущей конфигурацией, сервер SSH доступен на порте %s.
+    Message "$(gettext "With the current configuration, the SSH server is accessible on port %s.")" "$port"
+    # Хотите изменить номер порта?
+    if Confirm "$(gettext "Do you want to change the port number?")" -no; then
+      need_port=true
+    fi
+  fi
+
+  while $need_port; do
+    # Введите номер порта (в диапазоне от 1 024 до 65 535):
+    Message "$(gettext "Enter the port number (between 1 024 and 65 535):")" -s="$DEF_STYLE_ENTER"
+    Read -e -i "$port" port
+
+    if IsValidPort "$port"; then
+      set_port=true
+      break
+    else
+      # Ожидается целое число в диапазоне от 1 024 до 65 535.
+      Message "$(gettext "Expected integer ranging from 1 024 to 65 535.")" -s="$DEF_STYLE_ERROR"
+    fi
+  done
+
+  # default users
+  local allow_users="$(GetValue $config AllowUsers)"
+
+  if [[ "$USER" != "root" ]]; then
+    if [[ "$allow_users" = "" ]]; then
+      allow_users="$USER"
+    elif [[ "$allow_users" != "" && ! "$allow_users" != *"$USER"* ]]; then
+      allow_users+=" $USER"
+    fi
+  fi
+
+  if [[ "$HTAN_USER" != "root" ]]; then
+    if [[ "$allow_users" = "" ]]; then
+      allow_users="$HTAN_USER"
+    elif [[ "$allow_users" != "" && "$allow_users" != *"$HTAN_USER"* ]]; then
+      allow_users+=" $HTAN_USER"
+    fi
+  fi
+
+  Line
+
+  # Для большей надежности вы можете разрешить доступ к подключению к серверу только определенным пользователям.
+  Message "$(gettext "To increase security, you can allow access to the connection to the server only to specific users.")"
+
+  while true; do
+    # Укажите имена пользователей, которым разрешено подключение по протоколу SSH:
+    Message "$(gettext "Enter the names of users who are allowed SSH connections:")" -s="$DEF_STYLE_ENTER"
+    # (можно указать более одного пользователя, разделяя имена пробелом)
+    Message "$(gettext "(you can specify more than one user by separating the names with a space)")" -s="$DEF_STYLE_ENTER"
+
+    Read -e -i "$allow_users" allow_users
+
+    if [ "$allow_users" = "" ]; then
+      # Настоятельно рекомендуется указать имена пользователей, которым должно быть доступно подключение через SSH.
+      Message "$(gettext "It is strongly recommended to restrict the list of users to access via SSH.")" -s="$DEF_STYLE_WARNING"
+      # Вы действительно не хотите ограничивать доступ к серверу SSH?
+      if Confirm "$(gettext "You really do not want to introduce restrictions on access to server over SSH?")" -yes; then
+        # Вы можете в любое время можете изменить конфигурацию сервера SSH в файле %s.
+        Message "$(gettext "You can at any time, can change the configuration of the SSH server in the file %s.")" "$config"
+        break
+      fi
+    else
+      break
+    fi
+  done
+
+  # apply settings
+  if $set_port; then
+    SetValue $config Port $port
+  fi
+  if [[ -n "$allow_users" ]]; then
+    SetValue $config AllowUsers "$allow_users"
+  fi
+  SetValue $config PermitEmptyPasswords no
+
+  # PermitRootLogin no - запрет для root (пока не стоит этого делать)
+
+  # ServiceRestart ssh
+
+  ServerInfo "$(gettext "SSH access"):\n"
+  ServerInfo "--------------------------------------------\n"
+  ServerInfo "$(gettext "Host"): $HTAN_SERVER_IP\n"
+  ServerInfo "$(gettext "Port"): $port\n"
+  ServerInfo "--------------------------------------------\n\n"
+
+  Message "$(gettext "Done.")"
+}
+
+InstallSSH

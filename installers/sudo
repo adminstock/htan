@@ -1,0 +1,199 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of sudo.
+#
+# USAGE:
+#   sudo [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   23.09.2015
+#
+# REVISION:
+#   12.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Sudo - substitute user and do
+#
+# HTAN_CATEGORY:
+#   Security
+#
+# HTAN_OPTIONAL:
+#   false
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "sudo" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "sudo" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallSudo()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=1.8.10"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "sudo" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  if PackageExists sudo; then
+    # В системе найден пакет sudo. Установка пакета не требуется.
+    Message "$(gettext "The system found a package %s. Installing is not required.")." "sudo"
+
+    local need_config="-no"
+
+    # is not root and not sudo user
+    if [[ "$USER" != "root" ]]; then
+      (groups "$USER" 2> /dev/null | grep -q "\bsudo\b") || (need_config="-yes")
+      Debug "USER: $USER=$need_config"
+    elif [[ "$USER" = "root" && "$HTAN_USER" != "root" ]]; then
+      (groups "$HTAN_USER" 2> /dev/null | grep -q "\bsudo\b") || (need_config="-yes")
+      Debug "HTAN_USER: $HTAN_USER=$need_config"
+    fi
+
+    # Хотите провести конфигурацию sudo?
+    if ! Confirm "$(gettext "Would you like to configure %s?")" "sudo" $need_config; then
+      # Операция прервана пользователем.
+      Message "$(gettext "Operation canceled by the user.")"
+      return
+    fi
+  else
+    # Программа sudo предназначена для предоставления пользователям ограниченных прав суперпользователя, для выполнения задач по управлению сервером и сохранения максимального уровня безопасности.
+    Message "$(gettext "Sudo is a program that allows users to run programs with the security privileges of another user, by default the superuser.")"
+    Line
+    if ! PackageInstall sudo -confirm=false -root $tested; then
+      # Произошла ошибка при установке sudo. Без sudo продолжать не имеет смысла.
+      Error "$(gettext "An error occurred while installing sudo. Continued impossible.")"
+    fi
+    Line
+  fi
+
+  Message "$(gettext "Configuring %s.")" "sudo"
+  Line
+
+  local add_other_user="-yes"
+  if [[ "$USER" != "root" ]]; then
+    #if Confirm "Хотите добавить пользователя $USER в группу sudo?"; then
+    # Добавление пользователя %s в группу %s
+    Message "$(gettext "Adding %s to the %s …")" "$USER" "sudo" -n
+    {
+      # addgroup $USER sudo
+      (su root -c "usermod -a -G sudo $USER" > /dev/null 2>&1; wait) && (OK; add_other_user="-no")
+    } || {
+      Fail
+    }
+    #fi
+    Line
+  fi
+
+  # Для полноценной работы с sudo, доверенные пользователи должны входить в группу sudo.
+  Message "$(gettext "Trusted users must be members of the sudo group.")"
+  Line
+
+  local username
+  local htan_user_added=false
+
+  while true; do
+
+    # Хотите добавить пользователя в группу %s?
+    if ! Confirm "$(gettext "Do you want to add a new member to the %s?")" "sudo" $add_other_user; then
+      break
+    fi
+
+    Line
+
+    # Введите имя пользователя, которого следует добавить в группу %s:
+    Message "$(gettext "Enter a username, which must be added to the %s:")" "sudo" -s="$DEF_STYLE_ENTER"
+
+    Debug "$HTAN_USER / $USER / $htan_user_added"
+    if [[ $htan_user_added = false && "$HTAN_USER" != "$USER" ]]; then
+      Read -e -i "$HTAN_USER" username
+    else
+      Read username
+    fi
+
+    if [[ -n "$username" ]]; then
+      Line
+      # "Добавление %s в группу %s …"
+      Message "$(gettext "Adding %s to the %s …")" "$username" "sudo" -n -s="$DEF_STYLE_ACTION"
+
+      if id -u "$username" >/dev/null 2>&1; then
+        {
+          # addgroup $username sudo
+          (su root -c "usermod -a -G sudo $username" > /dev/null 2>&1; wait) && 
+          {
+            OK
+            if [[ $htan_user_added = false && "$HTAN_USER" = "$username" ]]; then
+              htan_user_added=true
+            fi
+            Debug "$HTAN_USER = $htan_user_added"
+          }
+        } || {
+          Fail
+        }
+      else
+        Fail
+        # Ошибка: Пользователь %s не найден.
+        Message "$(gettext "Error: User %s not found.")" "$username" -s="$DEF_STYLE_ERROR"
+      fi
+
+      Line
+    else
+      # Ошибка: Имя пользователя не может быть пустым.
+      Message "$(gettext "Error: Username is required. Value cannot be empty.")" -s="$DEF_STYLE_ERROR"
+      add_other_user="-no"
+    fi
+
+  done
+
+  Line
+  ServiceRestart sudo
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallSudo

@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# Tests for validators of the /../tools/common
+
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    echo -n "Including the common …"
+    source "$(cd $(dirname $0) && pwd)/../tools/common" && OK
+  } || {
+    echo ""
+    echo -e "\033[1;31mFailed to include the common.\033[0m"
+    exit 1
+  }
+fi
+
+Line "#"
+Message "# Testing the validation methods" -s="$DEF_STYLE_HEADER"
+Line "#"
+
+Message "IsValidHost"
+Line
+
+declare -a test_hosts=("example=0" "example.org=0" "ex-ample123.org=0" "my1.example.org=0" "example .example=1" "проверка.рф=1" ".example=1" "example.=1")
+
+for item in "${test_hosts[@]}"; do
+  host="$(printf "%s" "$item" | cut -f1 -d'=')"
+  valid="$(printf "%s" "$item" | cut -f2 -d'=')"
+
+  if [[ "$valid" = 0 ]]; then
+    Message "[ OK  ] " -n -s="$STYLE_LGREEN"
+  else
+    Message "[WRONG] " -n -s="$STYLE_LRED"
+  fi
+
+  Message "$host" -n
+
+  IsValidHost "$host"
+  if [[ "$?" = "$valid" ]]; then
+    Success
+  else
+    Fail
+  fi
+done
+
+Line
+Message "IsValidEmail"
+Line
+
+declare -a test_email=("example@example.org=0" "ex am ple @example=1" "example@example=1" "@example.org=1" "example@=1")
+
+for item in "${test_email[@]}"; do
+  email="$(printf "%s" "$item" | cut -f1 -d'=')"
+  valid="$(printf "%s" "$item" | cut -f2 -d'=')"
+
+  if [[ "$valid" = 0 ]]; then
+    Message "[ OK  ] " -n -s="$STYLE_LGREEN"
+  else
+    Message "[WRONG] " -n -s="$STYLE_LRED"
+  fi
+
+  Message "$email" -n
+
+  IsValidEmail "$email"
+  if [[ "$?" = "$valid" ]]; then
+    Success
+  else
+    Fail
+  fi
+done
+
+Line
+Message "IsValidPort"
+Line
+
+declare -a test_ports=("example=1" "example123=1" "example 123=1" "0=1" "1=0" "1024=0" "65535=0" "65536=1" "65535000=1")
+
+for item in "${test_ports[@]}"; do
+  port="$(printf "%s" "$item" | cut -f1 -d'=')"
+  valid="$(printf "%s" "$item" | cut -f2 -d'=')"
+
+  if [[ "$valid" = 0 ]]; then
+    Message "[ OK  ] " -n -s="$STYLE_LGREEN"
+  else
+    Message "[WRONG] " -n -s="$STYLE_LRED"
+  fi
+
+  Message "$port" -n
+
+  IsValidPort "$port"
+  if [[ "$?" = "$valid" ]]; then
+    Success
+  else
+    Fail
+  fi
+done
+
+Line
+Message "Complete."

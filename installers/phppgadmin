@@ -1,0 +1,175 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of phpPgAdmin.
+#
+# USAGE:
+#   phppgadmin [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, PostgreSQL, Nginx, Apache2, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   13.10.2015
+#
+# REVISION:
+#   17.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   phpPgAdmin
+#
+# HTAN_CATEGORY:
+#   Admin Panel
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "phppgadmin" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "phppgadmin" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config web
+
+declare HTAN_PGADMIN_HOST=""
+
+InstallPhpPgAdmin()
+{
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=5.1" # 5.1-1.1
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "phpPgAdmin" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # Для управления PostgreSQL рекомендуется установить веб-панель - phpPgAdmin.
+  Message "$(gettext "phpPgAdmin is a web application, written in PHP, for managing PostgreSQL databases.")"
+  Line
+
+  local phppgadmin_exists=$(PackageExists phppgadmin && echo true || echo false)
+
+  if [[ $phppgadmin_exists == true ]]; then
+    Message "$(gettext "On this server is already installed %s.")" "phpPgAdmin"
+    if ! Confirm "$(gettext "Would you like to configure? (the current settings will be overwritten)")" -yes; then
+      Message "$(gettext "Operation canceled by the user.")"
+      return
+    fi
+  fi
+
+  if [[ $phppgadmin_exists == false ]]; then
+    if ! PackageInstall phppgadmin -confirm=true -title="phpPgAdmin" $tested; then
+      Line
+      Message "$(gettext "Done.")"
+      return
+    fi
+  fi
+
+  Line
+
+  # config phpPgAdmin
+  local phppgadmin_config_source="$HTAN_PATH_DATA/phppgadmin.config.inc.php"
+  local phppgadmin_config_target="/etc/phppgadmin/config.inc.php"
+  if [[ -f $phppgadmin_config_source ]]; then
+    local c="sudo cp $phppgadmin_config_source $phppgadmin_config_target >> $HTAN_LOG 2>&1"
+    Execute -c="$c" -m="$(gettext "Creating configuration file for %s …")" -a="phpPgAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    # config phppgadmin
+    ReplaceMarker $phppgadmin_config_target "desc" "$HOSTNAME"
+    ReplaceMarker $phppgadmin_config_target "host" "localhost"
+    ReplaceMarker $phppgadmin_config_target "port" "5432"
+    ReplaceMarker $phppgadmin_config_target "sslmode" "allow"
+    ReplaceMarker $phppgadmin_config_target "defaultdb" "template1"
+    ReplaceMarker $phppgadmin_config_target "pg_dump_path" "/usr/bin/pg_dump"
+    ReplaceMarker $phppgadmin_config_target "pg_dumpall_path" "/usr/bin/pg_dumpall"
+    ReplaceMarker $phppgadmin_config_target "default_lang" "auto"
+    ReplaceMarker $phppgadmin_config_target "autocomplete" "default on"
+    ReplaceMarker $phppgadmin_config_target "extra_login_security" "true"
+    ReplaceMarker $phppgadmin_config_target "owned_only" "false"
+    ReplaceMarker $phppgadmin_config_target "show_comments" "true"
+    ReplaceMarker $phppgadmin_config_target "show_advanced" "false"
+    ReplaceMarker $phppgadmin_config_target "show_system" "false"
+    ReplaceMarker $phppgadmin_config_target "min_password_length" "12"
+    ReplaceMarker $phppgadmin_config_target "max_rows" "100"
+    ReplaceMarker $phppgadmin_config_target "max_chars" "50"
+    ReplaceMarker $phppgadmin_config_target "ajax_refresh" "3" # in seconds
+    ReplaceMarker $phppgadmin_config_target "show_oids" "false"
+  else
+    Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="phpPgAdmin" -a="$phppgadmin_config_source" -s="$DEF_STYLE_ERROR"
+    Line
+  fi
+
+  # Message "$(gettext "You can add site to access the %s, or do it later, when installing SmallServerAdmin. Recommend using SmallServerAdmin.")" "phpPgAdmin"
+  # Line
+
+  if Confirm "$(gettext "Do you want to set up web access to %s?")" "phpPgAdmin" -yes; then
+    Line
+
+    EnterHost "$(printf "$(gettext "Enter the domain for %s:")" "phpPgAdmin")" -default="phppgadmin.$HOSTNAME"
+    Line
+
+    local phppgadmin_host="$HTAN_ENTERED_HOST"
+    AddHost "$phppgadmin_host"
+    Line
+
+    # Nginx only
+    AddSiteToNginx -host="$phppgadmin_host" -source="phppgadmin-nginx-only.conf"
+    Line
+
+    # Nginx + Apache
+    # AddSiteToNginx -host="$phppgadmin_host" -source="phppgadmin.conf"
+    # Line
+
+    # AddSiteToApache -host="$phppgadmin_host" -source="phppgadmin.conf"
+    # Line
+
+    ServerInfo "phpPgAdmin:\n"
+    ServerInfo "--------------------------------------------\n"
+    ServerInfo "$(gettext "Address"): http://$phppgadmin_host\n\n"
+    ServerInfo "$(gettext "Root-access is prohibited for security reasons.")\n"
+    # ServerInfo "$(gettext "Login"): postgres\n"
+    # ServerInfo "$(gettext "Password"): $HTAN_PGSQL_ROOT_PASSWORD\n"
+    ServerInfo "--------------------------------------------\n\n"
+  fi
+
+  Message "$(gettext "Done.")"
+}
+
+InstallPhpPgAdmin

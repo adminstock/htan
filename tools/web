@@ -1,0 +1,386 @@
+#!/bin/bash
+
+#======================================================================
+# Represents methods for web sites management.
+#
+# USAGE:
+#   web [--debug] [--version] [--help] [--nocolor]
+#
+#       [
+#         --nginx|apache
+#         --source="Config template file path"
+#         --host="example.org"
+#         [--enabled=true|false]
+#         [-newline=any char or string]
+#         [-marker1=value -marker2=value ... -markerN=value]
+#       ]
+#
+#       [--host="example.org" [--confirm=true|false]]
+#
+# NAME:
+#   HTAN Web Tool
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, Nginx, Apache2, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.3
+#
+# CREATED:
+#   21.11.2015
+#
+# REVISION:
+#   19.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "web" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/common"; then
+      if [[ "${0##*/}" != "web" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+HTAN_INCLUDED_TOOLS=("${HTAN_INCLUDED_TOOLS[@]}" "web")
+
+#======================================================================
+# Adds configuration file of site to Nginx.
+#
+# USAGE:
+#   AddSiteToNginx -source="Config template file path"
+#                  -host="example.org"
+#                  [-enabled=true|false]
+#                  [-newline=any char or string]
+#                  [-marker1=value -marker2=value ... -markerN=value]
+#
+# ARGUMENTS:
+#   -source
+#     The path to the template of configuration file.
+#
+#   -host
+#     Host Name. It is used as the file name.
+#     It must be unique for this server.
+#
+#   -enabled
+#     Must activate the site after the creation or not.
+#     Default: true.
+#
+#   -newline
+#     Newline char or string for markers value. 
+#     This character or string will be replaced by a new line.
+#     Default: \x01
+#
+# RETURNS:
+#   Returns 0 (true) if successful; otherwise 1 (false).
+#======================================================================
+AddSiteToNginx()
+{
+  ParseArgs "$@"
+
+  local nginx_site_conf_source="${HTAN_PARSE_ARGS_RESULT[source]:-${HTAN_PARSE_ARGS_RESULT[s]}}"
+  local nginx_site_host="${HTAN_PARSE_ARGS_RESULT[host]:-${HTAN_PARSE_ARGS_RESULT[h]}}"
+  local nginx_site_enabled="${HTAN_PARSE_ARGS_RESULT[enabled]:-${HTAN_PARSE_ARGS_RESULT[e]:-true}}"
+  local nginx_markers_newline="${HTAN_PARSE_ARGS_RESULT[newline]:-${HTAN_PARSE_ARGS_RESULT[nl]}}"
+  
+  # markers
+  local -A nginx_markers
+  local nginx_ingnore=("source" "s" "host" "h" "enabled" "e" "newline" "nl")
+  for a_k in "${!HTAN_PARSE_ARGS_RESULT[@]}"; do
+    if [[ " ${nginx_ingnore[@]} " =~ " ${a_k} " ]]; then
+      continue
+    fi
+
+    nginx_markers["$a_k"]="${HTAN_PARSE_ARGS_RESULT[$a_k]}"
+  done
+
+  if [[ -z "$nginx_site_conf_source" ]]; then
+    # Невозможно настроить %s. Файл шаблона не указан.
+    Message "$(gettext "Unable to configure %s. The template file is not specified.")" -a="Nginx" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ -z "$nginx_site_host" ]]; then
+    # Невозможно настроить %s. Имя хоста не указано.
+    Message "$(gettext "Unable to configure %s. The hostname is not specified.")" -a="Nginx" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ ! -f "$nginx_site_conf_source" ]]; then
+    nginx_site_conf_source="$HTAN_PATH_DATA/nginx/$nginx_site_conf_source"
+  fi
+
+  if [[ ! -f "$nginx_site_conf_source" ]]; then
+    # Невозможно настроить %s. Шаблон %s не найден.
+    Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="Nginx" -a="$nginx_site_conf_source" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  local nginx_site_conf_target="/etc/nginx/sites-available/$nginx_site_host.conf"
+
+  if [[ -f "$nginx_site_conf_target" ]]; then
+    # Сайт %s уже существует. Хотите перезаписать файл конфигурации сайта?
+    Message "$(gettext "Site %s already exists.")" "$nginx_site_host"
+    Line
+
+    if ! Confirm "$(gettext "Do you want to overwrite the configuration file of the site?")" -no; then
+      return 1;
+    fi
+
+    Line
+  fi
+
+  # create site config
+  local c="sudo cp --force $nginx_site_conf_source $nginx_site_conf_target >> $HTAN_LOG 2>&1"
+  # Добавление сайта %s в %s …
+  Execute -c="$c" -m="$(gettext "Configure %s with %s …")" -a="$nginx_site_host" -a="Nginx" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+  # set host
+  ReplaceMarker $nginx_site_conf_target "server_name" "$nginx_site_host" # >> $HTAN_LOG 2>&1
+
+  # markers
+  for angx_k in "${!nginx_markers[@]}"; do
+    ReplaceMarker $nginx_site_conf_target "$angx_k" "${nginx_markers[$angx_k]}" "$nginx_markers_newline"
+  done
+
+  # enable site
+  if [[ ! -f "/etc/nginx/sites-enabled/$nginx_site_host.conf" && -f $nginx_site_conf_target && $nginx_site_enabled == true ]]; then
+    c="sudo ln -s $nginx_site_conf_target /etc/nginx/sites-enabled/ >> $HTAN_LOG 2>&1"
+    # Активация сайта %s …
+    Execute -c="$c" -m="$(gettext "Activation %s …")" -a="$nginx_site_host" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  else
+    Message "$(gettext "Activation is not required.")" -n -s="$DEF_STYLE_ACTION_COMP"
+    OK
+  fi
+
+  return 0
+}
+
+#======================================================================
+# Adds configuration file of site to Apache2.
+#
+# USAGE:
+#   AddSiteToApache -source="Config template file path"
+#                   -host="example.org"
+#                   [-enabled=true|false]
+#                   [-newline=any char or string]
+#                   [-marker1=value -marker2=value ... -markerN=value]
+#
+# ARGUMENTS:
+#   -source
+#     The path to the template of configuration file.
+#
+#   -host
+#     Host Name. It is used as the file name.
+#     It must be unique for this server.
+#
+#   -enabled
+#     Must activate the site after the creation or not.
+#     Default: true.
+#
+#   -newline
+#     Newline char or string for markers value. 
+#     This character or string will be replaced by a new line.
+#     Default: \x01
+#
+# RETURNS:
+#   Returns 0 (true) if successful; otherwise 1 (false).
+#======================================================================
+AddSiteToApache()
+{
+  ParseArgs "$@"
+
+  local apache_site_conf_source="${HTAN_PARSE_ARGS_RESULT[source]:-${HTAN_PARSE_ARGS_RESULT[s]}}"
+  local apache_site_host="${HTAN_PARSE_ARGS_RESULT[host]:-${HTAN_PARSE_ARGS_RESULT[h]}}"
+  local apache_site_enabled="${HTAN_PARSE_ARGS_RESULT[enabled]:-${HTAN_PARSE_ARGS_RESULT[e]:-true}}"
+  local apache_markers_newline="${HTAN_PARSE_ARGS_RESULT[newline]:-${HTAN_PARSE_ARGS_RESULT[nl]}}"
+  
+  # markers
+  local -A apache_markers
+  local apache_ingnore=("source" "s" "host" "h" "enabled" "e" "newline" "nl")
+  for a_k in "${!HTAN_PARSE_ARGS_RESULT[@]}"; do
+    if [[ " ${apache_ingnore[@]} " =~ " ${a_k} " ]]; then
+      continue
+    fi
+
+    apache_markers["$a_k"]="${HTAN_PARSE_ARGS_RESULT[$a_k]}"
+  done
+
+  if [[ -z "$apache_site_conf_source" ]]; then
+    # Невозможно настроить %s. Файл шаблона не указан.
+    Message "$(gettext "Unable to configure %s. The template file is not specified.")" -a="Apache" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ -z "$apache_site_host" ]]; then
+    # Невозможно настроить %s. Имя хоста не указано.
+    Message "$(gettext "Unable to configure %s. The hostname is not specified.")" -a="Apache" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ ! -f "$apache_site_conf_source" ]]; then
+    apache_site_conf_source="$HTAN_PATH_DATA/apache2/$apache_site_conf_source"
+  fi
+
+  if [[ ! -f "$apache_site_conf_source" ]]; then
+    # Невозможно настроить %s. Шаблон %s не найден.
+    Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="Apache" -a="$apache_site_conf_source" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  local apache_site_conf_target="/etc/apache2/sites-available/$apache_site_host.conf"
+
+  if [[ -f "$apache_site_conf_target" ]]; then
+    # Сайт %s уже существует. Хотите перезаписать файл конфигурации сайта?
+    Message "$(gettext "Site %s already exists.")" "$apache_site_host"
+    Line
+
+    if ! Confirm "$(gettext "Do you want to overwrite the configuration file of the site?")" -no; then
+      return 1;
+    fi
+
+    Line
+  fi
+
+  # create site config
+  local c="sudo cp --force $apache_site_conf_source $apache_site_conf_target >> $HTAN_LOG 2>&1"
+  # Добавление сайта %s в %s …
+  Execute -c="$c" -m="$(gettext "Configure %s with %s …")" -a="$apache_site_host" -a="Apache" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+  # set host
+  ReplaceMarker $apache_site_conf_target "ServerName" "$apache_site_host" # >> $HTAN_LOG 2>&1
+
+  # markers
+  for a_k in "${!apache_markers[@]}"; do
+    ReplaceMarker $apache_site_conf_target "$a_k" "${apache_markers[$a_k]}" "$apache_markers_newline"
+  done
+
+  # enable site
+  if [[ -f $apache_site_conf_target && $apache_site_enabled == true ]]; then
+    c="sudo a2ensite $apache_site_host.conf >> $HTAN_LOG 2>&1"
+    # Активация сайта %s …
+    Execute -c="$c" -m="$(gettext "Activation %s …")" -a="$apache_site_host" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  else
+    Message "$(gettext "Activation is not required.")" -n -s="$DEF_STYLE_ACTION_COMP"
+    OK
+  fi
+
+  return 0
+}
+
+#======================================================================
+# Adds host to /etc/hosts.
+#
+# USAGE:
+#   AddHost -host="example.org"
+#           [-confirm=true|false]
+#
+# ARGUMENTS:
+#   -host
+#     Host name to add.
+#
+#   -confirm
+#     Ask for confirmation or not.
+#     Default: true.
+#
+# RETURNS:
+#   None
+#======================================================================
+AddHost()
+{
+  ParseArgs "$@"
+
+  local host="${HTAN_PARSE_ARGS_RESULT[host]:-${HTAN_PARSE_ARGS_RESULT[h]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  local confirm="${HTAN_PARSE_ARGS_RESULT[confirm]:-${HTAN_PARSE_ARGS_RESULT[c]:-true}}"
+  local allow=true
+
+  if [[ -z "$HTAN_SERVER_IP" ]]; then
+    GetServerIP
+    Line
+  fi
+
+  if [[ "$host" != "$HTAN_SERVER_IP" ]]; then
+    if [[ "$confirm" == true ]]; then
+      # Если этот сервер используется для тестирования и адрес $host не является настоящим, для удобства можно прописать его в файле /etc/hosts. Это позволит обращаться к сайту через браузер.
+      Message "$(gettext "If the current server to test, for the convenience can be set the %s in the file /etc/hosts. It allows to access the site through a browser.")" "$host"
+      # Но не стоит этого делать, если сервер настоящий/боевой!
+      Message "$(gettext "Do not do this if the server does not for tests!")" -s="$DEF_STYLE_WARNING"
+      Line
+      
+      local ah_yn="-no"
+      if [[ "${HTAN_SERVER_IP:0:3}" == "192" ]]; then
+        ah_yn="-yes"
+      fi
+
+      # Хотите добавить $host в /etc/hosts?
+      if ! Confirm "$(gettext "Are you want add %s to the /etc/hosts?")" -a="$host" $ah_yn; then
+        allow=false
+      fi
+    fi
+
+    if [[ $allow == true ]]; then
+      if ! $(grep -q "^$HTAN_SERVER_IP\s*$host" /etc/hosts); then
+        Line
+        # Добавление записи в /etc/hosts …
+        Execute -c="sudo echo -e \"$HTAN_SERVER_IP\t$host\" >> /etc/hosts" -m="$(gettext "Adding the hostname to the /etc/hosts …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      fi
+
+      Line
+
+      # На клиентских машинах вы также можете ассоциировать $host с адресом сервера $HTAN_SERVER_IP, чтобы работать с сайтом. Если у вас Windows, то файл hosts можно найти в папке C:\Windows\System32\drivers\etc.
+      Message "$(gettext "On the client machines, you can also associate the %s with the %s. For Windows, the hosts file can be found in the folder C:\Windows\System32\drivers\etc.")" "$host" "$HTAN_SERVER_IP"
+      # Если хост $host в будущем станет полноценным и доступным для внешнего мира, не забудьте удалить запись из ваших файлов hosts (на сервере и у клиентов), чтобы избежать путаницы.
+      Message "$(gettext "Once testing is complete, to avoid problems, do not forget to remove %s of hosts on the server and clients.")" "$host" -s="$DEF_STYLE_WARNING"
+      PressAnyKey
+    fi
+  fi
+}
+
+#----------------------------------------------------------------------
+# Self-script
+#----------------------------------------------------------------------
+if [[ "${0##*/}" == "web" ]]; then
+  IncludeTool config service
+
+  ParseArgs "$@"
+  HTAN_ONE_SKIP_PARSE_ARGS=true
+
+  if [[ -n "${HTAN_PARSE_ARGS_RESULT[nginx]}" ]]; then
+    unset HTAN_PARSE_ARGS_RESULT[nginx]
+    AddSiteToNginx
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[apache]}" || -n "${HTAN_PARSE_ARGS_RESULT[apache2]}" ]]; then
+    unset HTAN_PARSE_ARGS_RESULT[apache]
+    unset HTAN_PARSE_ARGS_RESULT[apache2]
+    AddSiteToApache
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[host]}" ]]; then
+    AddHost
+  fi
+
+  exit $?
+fi

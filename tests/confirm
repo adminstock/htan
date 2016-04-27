@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Tests for Confirm of the /../tools/common
+
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    echo -n "Including the common …"
+    source "$(cd $(dirname $0) && pwd)/../tools/common" && OK
+  } || {
+    echo ""
+    echo -e "\033[1;31mFailed to include the common.\033[0m"
+    exit 1
+  }
+fi
+
+Line "#"
+Message "# Testing the Confirm method" -s="$DEF_STYLE_HEADER"
+Line "#"
+
+if Confirm "Yes or No?" -yes; then
+  Message "YES"
+else
+  Message "NO"
+fi
+
+if Confirm "Yes or No?" -no; then
+  Message "YES"
+else
+  Message "NO"
+fi
+
+if Confirm "Yes or No?"; then
+  Message "YES"
+else
+  Message "NO"
+fi
+
+if Confirm "Please wait 3 sec." -yes -timeout=3; then
+  Message "YES"
+else
+  Message "NO"
+fi
+
+if Confirm "Please wait 3 sec." -no -timeout=3; then
+  Message "YES"
+else
+  Message "NO"
+fi
+
+if Confirm "Please wait 3 sec. and press key" -timeout=3; then
+  Message "YES"
+else
+  Message "NO"
+fi
+
+Line
+Message "Complete."

@@ -1,0 +1,503 @@
+#!/bin/bash
+
+#======================================================================
+# Performs the deployment and configuration of the server to hosting.
+#
+# USAGE:
+#   run [--debug] [--version] [--help] [--nocolor] [--tested]
+#       [--log=file path] [--lang=en|ru|...]
+#
+# NAME:
+#   HTAN Installer
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, HTAN Tools, HTAN Installers
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.55
+#
+# CREATED:
+#   14.09.2015
+#
+# REVISION:
+#   27.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#======================================================================
+
+#clear
+
+# Base path
+readonly HTAN_BASE_PATH="$(cd "$(dirname "$0")" && pwd)"
+
+declare HTAN_STARTED=false
+declare HTAN_START_FROM
+
+# Installers to run
+declare -a HTAN_TASK_RUN=(\
+  sudo etckeeper xinetd ssh mc ntp
+  postfix nginx apache2 php5 # php7
+  mono vsftpd
+  mysql phpmyadmin postgresql phppgadmin
+  svn fail2ban iptables rcs adduser nmap
+  ssa htan-runner sysstat
+)
+
+# Include tools
+source "$HTAN_BASE_PATH/tools/common"
+source "$HTAN_BASE_PATH/tools/config"
+source "$HTAN_BASE_PATH/tools/package"
+source "$HTAN_BASE_PATH/tools/service"
+source "$HTAN_BASE_PATH/tools/web"
+
+# Custom installers list
+if [[ -n "${HTAN_PARSE_ARGS_RESULT[install]}" ]]; then
+  HTAN_TASK_RUN=()
+  IFS=',' read -r -a HTAN_TASK_RUN <<< "${HTAN_PARSE_ARGS_RESULT[install]}"
+  IFS=' '
+
+  # sudo required
+  if [[ -z "${HTAN_TASK_RUN[sudo]}" ]] && ! PackageExists sudo; then
+    HTAN_TASK_RUN=(sudo "${HTAN_TASK_RUN[@]}")
+  fi
+fi
+
+if [[ -n "${HTAN_PARSE_ARGS_RESULT[start-from]}" ]]; then
+  HTAN_START_FROM="${HTAN_PARSE_ARGS_RESULT[start-from]}"
+fi
+
+#======================================================================
+# Displays text of introduction.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+function Welcome()
+{
+  Debug "Welcome"
+  Line =
+  # Привет, %s!
+  Message "$(gettext "Hi %s!")" "$USER"
+  # Этот скрипт поможет провести настройку сервера для веб-хостинга.\n
+  # В процессе настройки от вас может потребоваться принятие решений.
+  Message "$(gettext "This script will help to configure the server for web hosting.")"
+  Line =
+
+  # Parse files of installers and generate installation details
+  local -A run_info
+  local -A run_info_optional
+  local run_installer_name run_installer_cat run_installer_optional
+  local run_installer_htan_key run_installer_htan_value
+  local run_no_comment=0 run_installer_htan_section
+  local OIFS="$IFS"
+
+  for run_installer in "${HTAN_TASK_RUN[@]}"; do
+    if [[ ! -f "$HTAN_BASE_PATH/installers/$run_installer" ]]; then
+      Debug "  %s not found." "$run_installer"
+      Message "$(gettext "File %s was not found.")" "$HTAN_BASE_PATH/installers/$run_installer" -s="$DEF_STYLE_ERROR"
+      continue
+    fi
+
+    run_no_comment=0
+    run_installer_htan_section=false
+    run_installer_name=""
+    run_installer_cat=""
+    run_installer_optional=false
+    Debug "  Parse %s …" "$run_installer"
+    # read line
+    while IFS=':' read -r run_installer_htan_key run_installer_htan_value; do
+      # checking key
+      if [[ -z "${run_installer_htan_key:0:1}" || "${run_installer_htan_key:0:1}" != "#" ]]; then
+        ((run_no_comment++))
+        if (( run_no_comment > 5 )); then
+          Debug "    block comments ended."
+          break;
+        else
+          continue
+        fi
+      fi
+
+      run_installer_htan_key="${run_installer_htan_key#"${run_installer_htan_key%%[!#|[:space:]]*}"}"
+
+      if [[ "${run_installer_htan_key:0:5}" != "HTAN_" ]]; then
+        if [[ $run_installer_htan_section == true && ! -z "$run_installer_htan_key" ]]; then
+          Debug "    section ended."
+          break
+        else
+          continue
+        fi
+      fi
+
+      run_installer_htan_value="$(Trim "$run_installer_htan_value")"
+
+      if [[ -z "$run_installer_htan_value" ]]; then
+        read -r run_installer_htan_value
+        run_installer_htan_value="${run_installer_htan_value#"${run_installer_htan_value%%[!#|[:space:]]*}"}"
+      fi
+
+      Debug "    %s = %s" "$run_installer_htan_key" "$run_installer_htan_value"
+
+      run_installer_htan_section=true
+
+      if [[ "$run_installer_htan_key" == "HTAN_NAME" ]]; then
+        run_installer_name="$run_installer_htan_value"
+      elif [[ "$run_installer_htan_key" == "HTAN_CATEGORY" ]]; then
+        run_installer_cat="$run_installer_htan_value"
+      elif [[ "$run_installer_htan_key" == "HTAN_OPTIONAL" ]]; then
+        run_installer_optional="$run_installer_htan_value"
+      fi
+    done < "$HTAN_BASE_PATH/installers/$run_installer"
+
+    if [[ -z "$run_installer_name" ]]; then
+      run_installer_name="$run_installer"
+    fi
+
+    if [[ -z "$run_installer_cat" ]]; then
+      run_installer_cat="General"
+    fi
+
+    if [[ "$run_installer_cat" != "Configuration" ]]; then
+      run_installer_cat="$(gettext "$run_installer_cat"; echo)"
+    fi
+
+    run_installer_name="$(gettext "$run_installer_name"; echo)"
+
+    # if [[ "$run_installer_optional" == true ]]; then
+    #   run_installer_name="$run_installer_name [optional]"
+    # fi
+
+    if [[ "$run_installer_optional" == true ]]; then
+      if [[ -z "${run_info_optional[$run_installer_cat]}" ]]; then
+        run_info_optional[$run_installer_cat]="$run_installer_name"
+      else
+        run_info_optional[$run_installer_cat]+=$'\n'
+        run_info_optional[$run_installer_cat]+="$run_installer_name"
+      fi
+    else
+      if [[ -z "${run_info[$run_installer_cat]}" ]]; then
+        run_info[$run_installer_cat]="$run_installer_name"
+      else
+        run_info[$run_installer_cat]+=$'\n'
+        run_info[$run_installer_cat]+="$run_installer_name"
+      fi
+    fi
+  done
+
+  local run_details="" ri_items=() ri_item=""
+
+  # Output details
+  if [[ -n "${run_info[@]}" ]]; then
+    # На сервер будут установлены следующие компоненты:
+    run_details+="$(Message "$(gettext "To this server will be installed the following components:")")\n"
+    run_details+="$(Line -)"
+
+    for ri_k in "${!run_info[@]}"; do
+      if [[ "$ri_k" == "Configuration" ]]; then
+        continue
+      fi
+
+      run_details+="$(Message "* $ri_k")\n"
+
+      while IFS= read -r ri_item; do
+        run_details+="$(Message "  - $ri_item")\n"
+      done <<< "${run_info[$ri_k]}"
+    done
+
+    # PressAnyKey
+  fi
+
+  if [[ -n "${run_info_optional[@]}" ]]; then
+    if [[ -n "${run_info[@]}" ]]; then
+      run_details+="$(Line -)"
+    fi
+
+    # Опционально могут быть установлены следующие компоненты:
+    run_details+="$(Message "$(gettext "Optionally can be installed the following components:")")\n"
+    run_details+="$(Line -)"
+
+    for ri_k in "${!run_info_optional[@]}"; do
+      if [[ "$ri_k" == "Configuration" ]]; then
+        continue
+      fi
+
+      run_details+="$(Message "* $ri_k")\n"
+
+      while IFS= read -r ri_item; do
+        run_details+="$(Message "  - $ri_item")\n"
+      done <<< "${run_info_optional[$ri_k]}"
+    done
+
+    # PressAnyKey
+  fi
+
+  if [[ -n "${run_info[Configuration]}" ]]; then
+    if [[ -n "${run_info[@]}" || -n "${run_info_optional[@]}" ]]; then
+      run_details+="$(Line -)"
+    fi
+
+    # Будет выполнена конфигурация следующих элементов:
+    run_details+="$(Message "$(gettext "Will be configured the following components:")")\n"
+    run_details+="$(Line -)"
+
+    # Конфигурация системы
+    run_details+="$(Message "* $(gettext "System configuration")")\n"
+
+    while IFS= read -r ri_item; do
+      run_details+="$(Message "  - $ri_item")\n"
+    done <<< "${run_info[Configuration]}"
+
+    # PressAnyKey
+  fi
+
+  IFS="$OIFS"
+
+  # run_details+="$(Line =)"
+
+  printf "$run_details" | less -RXFE --prompt="$(gettext "HELP -- Press RETURN for more, or Q for skip")"
+
+  # small pause
+  read -t 0.5 -n 1 key > /dev/null
+
+  Line =
+
+  # Хотите продолжить?
+  if ! Confirm "$(gettext "Do you want to continue?")" -yes; then
+    Line
+    # До свидания!
+    Message "$(gettext "Goodbye!")"
+    Line "~"
+    exit 0
+  fi
+}
+
+if [[ "$HTAN_ROOT_LOGIN" != "true" ]]; then
+  Welcome
+fi
+
+unset HTAN_ROOT_LOGIN
+
+# Check user
+if [[ "$USER" != "root" ]]; then
+  # Line
+  # ВНИМАНИЕ: Для удобства и минимизации возникновения ошибок в процессе работы скрипта, рекомендуется запускать его под пользователем root.
+  # Message "$(gettext "WARNING: To avoid problems, it is recommended to execute the script as root.")" -s="$DEF_STYLE_WARNING"
+  # Line
+  # Хотите перезапустить скрипт под учетной записью суперпользователя (root)?
+  # if Confirm "$(gettext "Do you want to restart this script as root?")" -yes; then
+    su -l root -c "$0 -root -u=$USER -debug=$HTAN_DEBUG"
+    exit 0
+  # else
+  #  Line
+  #  # Многие компоненты будет просто невозможно установить без пользователя root.\n
+  #  # Настоятельно рекомендуется продолжить выполнение скрипта под учетной записью пользователя root.
+  #  Message "$(gettext "Many components will cannot be installed without root privileges.\nIt is highly recommended to restart the script as root.")" -s="$DEF_STYLE_WARNING"
+  #  Line
+  #  # Нажмите Y, чтобы войти под учетной записью root.\n
+  #  # Нажмите N, чтобы попытаться выполнить скрипт под учетной записью $USER (нет никаких гарантий, что все пройдет гладко).
+  #  Message "$(gettext "Press Y, to restart the script with root privileges.\nPress N, to continue execution of the script under the current account (%s).")" "$USER" -s="$DEF_STYLE_QUESTION"
+  #  
+  #  if Confirm -yes; then
+  #    su root -c "$0 -root -u=$USER -debug=$HTAN_DEBUG"
+  #    exit 0
+  #  else
+  #    Line
+  #    # Попробуем, может что и получится...
+  #    Message "$(gettext "Let's try...")"
+  #  fi
+  # fi
+fi
+
+Line
+
+# Поехали!
+Message "$(gettext "Let's go!")"
+
+Line
+
+# Get server ip
+GetServerIP
+Line
+
+# Check status
+declare HTAN_CONTINUE=false HTAN_LAST_INSTALLER=""
+if [[ -f "$HTAN_BASE_PATH/.htan-processing" ]]; then
+  Message "$(gettext "Probably the previous installation process was not completed or was completed incorrectly.\nPress Y, to continue where it left off.\nPress N, to start the installation again.")"
+  Line
+
+  if Confirm "$(gettext "Do you want to continue the previous session?")" -yes; then
+    HTAN_CONTINUE=true
+    HTAN_LAST_INSTALLER="$(<$HTAN_BASE_PATH/.htan-processing)"
+  fi
+
+  Line
+fi
+
+if [[ "$HTAN_CONTINUE" == false ]]; then
+  # Delete old server info file
+  if [[ -f "$HTAN_SERVER_INFO" ]]; then
+    rm "$HTAN_SERVER_INFO" >> $HTAN_LOG 2>&1
+  fi
+
+  # Get server info
+  si_ram_size_kb=$(cat /proc/meminfo | grep MemTotal: | sed -r "s/MemTotal:\s+([0-9]+)\s*kB/\1/")
+  si_ram_size_mb=$((si_ram_size_kb / 1024))
+  si_cpu_name="$(Trim "$(cat /proc/cpuinfo | grep "model name" | cut -f2 -d':')")"
+  si_hdd_size="$(df --total -h | tail -n 1 | sed -E 's/total *([^ ]*).*/\1/')"
+
+  # Create server info file
+  ServerInfo "$(cat /etc/*release | grep "^PRETTY_NAME=*" | sed -r 's/PRETTY_NAME="(.+)"/\1/')"
+  ServerInfo "\n"
+  ServerInfo "--------------------------------------------\n"
+  ServerInfo "$(gettext "Hostname"):  $HOSTNAME\n"
+  ServerInfo "$(gettext "Server IP"): $HTAN_SERVER_IP\n\n"
+  ServerInfo "$(gettext "CPU"): $si_cpu_name\n"
+  ServerInfo "$(gettext "RAM"): $si_ram_size_mb Mb\n"
+  ServerInfo "$(gettext "HDD"): $si_hdd_size\n"
+  ServerInfo "--------------------------------------------\n\n"
+
+  # Update packages
+  PackageUpdate
+  Line
+  PackageUpgradeAll
+fi
+
+# Include and run installers
+for run_installer in "${HTAN_TASK_RUN[@]}"; do
+  if [[ -n "$HTAN_START_FROM" && "$HTAN_STARTED" == false && "$HTAN_START_FROM" != "$run_installer" ]]; then
+    continue
+  fi
+
+  HTAN_STARTED=true
+
+  if [[ "$HTAN_CONTINUE" == true && "$run_installer" != "$HTAN_LAST_INSTALLER" ]]; then
+    continue
+  elif [[ "$HTAN_CONTINUE" == true && "$run_installer" == "$HTAN_LAST_INSTALLER" ]]; then
+    HTAN_CONTINUE=false
+  fi
+
+  if [[ ! -f "$HTAN_BASE_PATH/installers/$run_installer" ]]; then
+    continue
+  fi
+
+  source "$HTAN_BASE_PATH/installers/$run_installer"
+  printf "%s" "$run_installer" > "$HTAN_BASE_PATH/.htan-processing"
+done
+
+# Delete session info
+if [[ -f "$HTAN_BASE_PATH/.htan-processing" ]]; then
+  rm "$HTAN_BASE_PATH/.htan-processing"
+fi
+
+Line
+
+# Commit changes
+if PackageExists etckeeper; then
+  etckeeper_changes=$(sudo bash -c 'cd /etc; git status --porcelain --untracked-files=no | wc -l')
+  if (( etckeeper_changes > 0 )); then
+    c="sudo bash -c 'cd /etc; etckeeper commit \"HTAN commit\"' >> $HTAN_LOG 2>&1"
+    Execute -c="$c" -m="Commit changes …" -l -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+fi
+
+# Add installed packages list to the server info file
+if [[ -n "$HTAN_INSTALLED" ]]; then
+  ServerInfo "$(gettext "Installed packages:")\n"
+  ServerInfo "--------------------------------------------\n"
+  for program_info in "${HTAN_INSTALLED[@]}"; do
+    if [[ -z "$program_info" ]]; then
+      continue
+    fi
+    ServerInfo "* $program_info\n"
+  done
+  ServerInfo "--------------------------------------------\n\n"
+fi
+
+ServerInfo "\n\nDomain registration:\nhttp://www.reg.ru/?rid=76963"
+ServerInfo "\nVDS hosting:\nhttps://en.ihor.ru/vds?from=112887"
+ServerInfo "\n\n-- \nCreated by HTAN v$HTAN_VERSION, $(date +'%d.%m.%Y')"
+
+# Настройка сервера завершена!
+Message "$(gettext "The server is configured!")" -s="$STYLE_LGREEN"
+Line
+
+# Send server info by email
+if [[ -f "$HTAN_SERVER_INFO" ]]; then
+  # Информацию о конфигурации и параметрах доступа к компонентам сервера можно найти в файле: %s
+  Message "$(gettext "Information to access the components of the server can be found in the file: %s.")" "$HTAN_SERVER_INFO"
+
+  if PackageExists postfix; then
+    Line
+    # Хотите отправить этот файл по email?
+    if Confirm "$(gettext "Do you want to send the file by email?")" -yes; then
+      Line
+      EnterEmail
+ 
+      if [[ -f "$HTAN_LOG.gz" ]]; then
+        sudo rm "$HTAN_LOG.gz" >> $HTAN_LOG 2>&1
+      fi
+
+      sudo gzip -k $HTAN_LOG >> $HTAN_LOG 2>&1
+
+      Line
+      Message "$(gettext "Sending a message …")" -n
+      {
+        (echo "$(cat $HTAN_SERVER_INFO)" | mail -s "Details of server $HTAN_SERVER_IP" -t "$HTAN_ENTERED_EMAIL" -a "Content-Type: text/plain; charset=UTF-8" -A "$HTAN_LOG.gz" >> $HTAN_LOG 2>&1; wait) && OK
+      } ||
+      {
+        Fail
+      }
+
+      if [[ -f "$HTAN_LOG.gz" ]]; then
+        sudo rm "$HTAN_LOG.gz" >> $HTAN_LOG 2>&1
+      fi
+    fi
+  fi
+
+  Line -
+fi
+
+# Show log
+if [[ -f $HTAN_LOG ]]; then
+  # Хотите посмотреть журнал?
+  if Confirm "$(gettext "Do you want to see the log?")" -no; then
+    nano $HTAN_LOG # | less -RXFE --prompt="$(gettext "HELP -- Press RETURN for more, or Q for exit")"
+    wait
+  fi
+
+  Line
+fi
+
+# Для завершения, рекомендуется перезапустить сервер.
+Message "$(gettext "Recommended to reboot the server.")"
+Line
+
+# Хотите выполнить перезагрузку сейчас?
+if Confirm "$(gettext "Do you want to reboot now?")" -yes; then
+  Line
+  Message "$(gettext "Goodbye!")"
+  Line "~"
+  sudo reboot
+else
+  Line "~"
+fi
+
+exit 0

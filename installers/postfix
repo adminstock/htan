@@ -1,0 +1,163 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of Postfix.
+#
+# USAGE:
+#   postfix [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   23.09.2015
+#
+# REVISION:
+#   15.10.2015
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Postfix - mail transfer agent (MTA)
+#
+# HTAN_CATEGORY:
+#   Mail Server
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "postfix" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "postfix" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallPostfix()
+{
+  # tested version
+  local -A tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested[postfix]="-version=2.11.3" # 2.11.3-1
+    tested[mailutils]="-version=2.99.98" # 1:2.99.98-2
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "Postfix" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  # В качестве почтового сервера рекомендуется использовать Postfix.\nPostfix — агент передачи почты (MTA — mail transfer agent).\nПомимо этого, для работы почтового сервера, будет установлен пакет mailutils.
+  Message "$(gettext "Postfix is a free and open-source mail transfer agent (MTA) that routes and delivers electronic mail.")"
+  Line
+
+  PackageInstall postfix -confirm=true -title="Postfix" ${tested[postfix]}
+
+  local has_postfix=$?;
+
+  if [[ $has_postfix == 0 ]]; then
+    local inet_interfaces="$(GetValue /etc/postfix/main.cf inet_interfaces =)"
+
+    if [[ "$inet_interfaces" != "127.0.0.1" ]]; then
+      # 25 port only for localhost
+      SetValue /etc/postfix/main.cf inet_interfaces "127.0.0.1" "="
+      ServiceRestart postfix
+    fi
+  else
+    return
+  fi
+
+  Line
+  PackageInstall "mailutils" -confirm=false ${tested[mailutils]}
+  Line
+
+  local email=""
+
+  while true; do
+    # Хотите получать по почте отчёты о работе сервисов и ошибках?
+    if Confirm "$(gettext "Do you want to be notified about errors?")" -no; then
+      if EnterEmail -optional; then
+        email="$HTAN_ENTERED_EMAIL"
+
+        SetValue /etc/aliases postmaster "root, $email" ":"
+
+        sudo newaliases
+        wait
+
+        break
+      fi
+    else
+      SetValue /etc/aliases postmaster "root" ":"
+
+      sudo newaliases
+      wait
+
+      break
+    fi
+  done
+
+  local default_answer="-yes"
+  while true; do
+    # Хотите отправить тестовое письмо?
+    if Confirm "$(gettext "Do you want to send a test message?")" "$default_answer"; then
+      Line
+
+      if EnterEmail -default="$email" -optional; then
+        Line
+        local email_to="$HTAN_ENTERED_EMAIL"
+        # Отправка сообщения …
+        Message "$(gettext "Sending a message …")" -n
+        {
+          (echo "This is test message." | mail -s "Test" "$email_to" >> $HTAN_LOG 2>&1; wait) && OK
+        } ||
+        {
+          Fail
+        }
+        #Message "Тестовое сообщение отправлено на адрес $email_to."
+        break
+      else
+        default_answer="-no"
+      fi
+    else
+      break
+    fi
+  done
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallPostfix

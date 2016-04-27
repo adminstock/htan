@@ -1,0 +1,247 @@
+#!/bin/bash
+
+# Tests for /../tools/config
+
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    echo -n "Including the common …"
+    source "$(cd $(dirname $0) && pwd)/../tools/common" && OK
+  } || {
+    echo ""
+    echo -e "\033[1;31mFailed to include the common.\033[0m"
+    exit 1
+  }
+fi
+
+IncludeTool config
+
+Line "#"
+Message "# Testing the module to work with configuration files" -s="$DEF_STYLE_HEADER"
+Line "#"
+
+Message "Write config: Type #1"
+
+test_file1=$(mktemp)
+
+SetValue $test_file1 Key1 1
+SetValue $test_file1 Key2 ABC
+SetValue $test_file1 Key3 "This is test"
+SetValue $test_file1 Key4 "/\\===@Test message!===/\\"
+SetValue -file=$test_file1 -key=Key5 -value=ON
+
+if Confirm "Do you want to view the test configuration file?" -no -timeout=10; then
+  nano $test_file1
+  wait
+fi
+
+Message "Write config: Type #2"
+
+test_file2=$(mktemp)
+
+SetValue $test_file2 Key1 1 =
+SetValue $test_file2 Key2 ABC =
+SetValue $test_file2 Key3 "This is test" =
+SetValue $test_file2 Key4 "/\\===@Test message!===/\\" =
+SetValue -file=$test_file2 -key=Key5 -value=ON -delimiter="="
+
+if Confirm "Do you want to view the test configuration file?" -no -timeout=10; then
+  nano $test_file2
+  wait
+fi
+
+Message "Write config: Type #2, Method #2"
+
+test_file22=$(mktemp)
+
+SetValue2 $test_file22 Key1 1
+SetValue2 $test_file22 Key2 ABC
+SetValue2 $test_file22 Key3 "This is test"
+SetValue2 $test_file22 Key4 "/\\===@Test message!===/\\"
+SetValue2 -file=$test_file22 -key=Key5 -value=ON
+
+if Confirm "Do you want to view the test configuration file?" -no -timeout=10; then
+  nano $test_file22
+  wait
+fi
+
+Message "Write INI"
+
+test_file3=$(mktemp)
+
+INI_SetValue $test_file3 Section1 Key1 1
+INI_SetValue $test_file3 Section1 Key2 ABC
+INI_SetValue $test_file3 Section1 Key3 "This is test"
+INI_SetValue $test_file3 Section2 Key1 "/\\===@Test message!===/\\"
+INI_SetValue $test_file3 Section2 Key2 ON
+
+if Confirm "Do you want to view the test configuration file?" -no -timeout=10; then
+  nano $test_file3
+  wait
+fi
+
+Line
+
+has_errors1="-no"
+has_errors2="-no"
+has_errors3="-no"
+
+fail=false
+Message "Reading #1 …" -n
+
+if [[ "$(GetValue $test_file1 Key1)" != "1" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file1 Key2)" != "ABC" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file1 Key3)" != "This is test" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file1 Key4)" != "/\\===@Test message!===/\\" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file1 Key5)" != "ON" ]]; then fail=true; fi
+
+if [[ $fail = true ]]; then
+  Fail
+  has_errors1="-yes"
+else
+  OK
+fi
+
+fail=false
+Message "Reading #2 …" -n
+
+if [[ "$(GetValue $test_file2 Key1 =)" != "1" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file2 Key2 =)" != "ABC" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file2 Key3 =)" != "This is test" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file2 Key4 =)" != "/\\===@Test message!===/\\" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file2 Key5 =)" != "ON" ]]; then fail=true; fi
+
+if [[ $fail = true ]]; then
+  Fail
+  has_errors2="-yes"
+else
+  OK
+fi
+
+fail=false
+Message "Reading from INI …" -n
+
+if [[ "$(INI_GetValue $test_file3 Section1 Key1)" != "1" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section1 Key2)" != "ABC" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section1 Key3)" != "This is test" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section2 Key1)" != "/\\===@Test message!===/\\" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section2 Key2)" != "ON" ]]; then fail=true; fi
+
+if [[ $fail = true ]]; then
+  Fail
+  has_errors3="-yes"
+else
+  OK
+fi
+
+Line
+
+if Confirm "Do you want to view the test configuration file #1?" $has_errors1 -timeout=10; then
+  nano $test_file1
+  wait
+fi
+if Confirm "Do you want to view the test configuration file #2?" $has_errors2 -timeout=10; then
+  nano $test_file2
+  wait
+fi
+if Confirm "Do you want to view the test configuration file INI?" $has_errors3 -timeout=10; then
+  nano $test_file3
+  wait
+fi
+
+Line
+
+has_errors1="-no"
+has_errors2="-no"
+has_errors3="-no"
+
+fail=false
+Message "Saving and reading #1 …" -n
+
+SetValue $test_file1 Key1 987 > /dev/null
+SetValue $test_file1 Key2 XYZ > /dev/null
+SetValue $test_file1 Key3 "Hello world!" > /dev/null
+SetValue $test_file1 Key4 "" > /dev/null
+SetValue $test_file1 Key5 OFF > /dev/null
+
+if [[ "$(GetValue $test_file1 Key1)" != "987" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file1 Key2)" != "XYZ" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file1 Key3)" != "Hello world!" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file1 Key4)" != "" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file1 Key5)" != "OFF" ]]; then fail=true; fi
+
+if [[ $fail = true ]]; then
+  Fail
+  has_errors1="-yes"
+else
+  OK
+fi
+
+fail=false
+Message "Saving and reading #2 …" -n
+
+SetValue2 $test_file2 Key1 987 > /dev/null
+SetValue2 $test_file2 Key2 XYZ > /dev/null
+SetValue2 $test_file2 Key3 "Hello world!" > /dev/null
+SetValue  $test_file2 Key4 "" "=" > /dev/null
+SetValue  $test_file2 Key5 OFF "=" > /dev/null
+
+if [[ "$(GetValue $test_file2 Key1 =)" != "987" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file2 Key2 =)" != "XYZ" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file2 Key3 =)" != "Hello world!" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file2 Key4 =)" != "" ]]; then fail=true; fi
+if [[ "$(GetValue $test_file2 Key5 =)" != "OFF" ]]; then fail=true; fi
+
+if [[ $fail = true ]]; then
+  Fail
+  has_errors2="-yes"
+else
+  OK
+fi
+
+fail=false
+Message "Saving and reading INI …" -n
+
+INI_SetValue $test_file3 Section1 Key1 5 > /dev/null
+INI_SetValue $test_file3 Section1 Key2 FFFFFF > /dev/null
+INI_SetValue $test_file3 Section1 Key3 "Hello world!" > /dev/null
+INI_SetValue $test_file3 Section1 Key5 "test 123" > /dev/null
+INI_SetValue $test_file3 Section2 Key1 "NULL" > /dev/null
+INI_SetValue $test_file3 Section2 Key2 OFF > /dev/null
+
+if [[ "$(INI_GetValue $test_file3 Section1 Key1)" != "5" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section1 Key2)" != "FFFFFF" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section1 Key3)" != "Hello world!" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section1 Key5)" != "test 123" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section2 Key1)" != "NULL" ]]; then fail=true; fi
+if [[ "$(INI_GetValue $test_file3 Section2 Key2)" != "OFF" ]]; then fail=true; fi
+
+if [[ $fail = true ]]; then
+  Fail
+  has_errors3="-yes"
+else
+  OK
+fi
+
+Line
+
+if Confirm "Do you want to view the test configuration file #1?" $has_errors1 -timeout=10; then
+  nano $test_file1
+  wait
+fi
+if Confirm "Do you want to view the test configuration file #2?" $has_errors2 -timeout=10; then
+  nano $test_file2
+  wait
+fi
+if Confirm "Do you want to view the test configuration file INI?" $has_errors3 -timeout=10; then
+  nano $test_file3
+  wait
+fi
+
+Line
+
+sudo rm $test_file1
+sudo rm $test_file2
+sudo rm $test_file22
+sudo rm $test_file3
+
+Message "Complete."

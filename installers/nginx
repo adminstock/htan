@@ -1,0 +1,103 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of Nginx.
+#
+# USAGE:
+#   nginx [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   14.09.2015
+#
+# REVISION:
+#   28.11.2015
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Nginx
+#
+# HTAN_CATEGORY:
+#   Web Server
+#
+# HTAN_OPTIONAL:
+#   false
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "nginx" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "nginx" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallNginx()
+{
+  # http://nginx.org/ru/docs/http/ngx_http_core_module.html#location
+
+  # tested version
+  local tested
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=1.6.2"
+  fi
+  # // --
+
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "Nginx" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  PackageInstall nginx -confirm=false -title="Nginx" $tested
+
+  Line
+
+  ServiceStop nginx
+
+  # protecting log files
+  sudo chmod 750 /etc/nginx/
+  sudo chgrp adm /var/log/nginx
+
+  # delete default site
+  if [[ -f /etc/nginx/sites-enabled/default ]]; then
+    sudo rm /etc/nginx/sites-enabled/default
+  fi
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallNginx

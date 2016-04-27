@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Tests for EnterPassword of the /../tools/common
+
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    echo -n "Including the common …"
+    source "$(cd $(dirname $0) && pwd)/../tools/common" && OK
+  } || {
+    echo ""
+    echo -e "\033[1;31mFailed to include the common.\033[0m"
+    exit 1
+  }
+fi
+
+Line "#"
+Message "# Testing the EnterPassword method" -s="$DEF_STYLE_HEADER"
+Line "#"
+
+EnterPassword
+echo "You password: $HTAN_PASSWORD"
+Line
+
+EnterPassword -t="Please, enter password now:"
+echo "You password: $HTAN_PASSWORD"
+Line
+
+EnterPassword -t="Enter a password if you want:" -o
+echo "You password: $HTAN_PASSWORD"
+Line
+
+EnterPassword -t="Do not enter a password:" -o -w="Now you can enter a password."
+echo "You password: $HTAN_PASSWORD"
+
+Line
+Message "Complete."

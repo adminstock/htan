@@ -1,0 +1,93 @@
+#!/bin/bash
+
+#======================================================================
+# Performs configuration of rcS.
+#
+# USAGE:
+#   rcs [--debug] [--version] [--help] [--nocolor]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   23.09.2015
+#
+# REVISION:
+#   15.10.2015
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   rcS - control the behaviour of scripts startup
+#
+# HTAN_CATEGORY:
+#   Configuration
+#
+# HTAN_OPTIONAL:
+#   false
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "rcs" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "rcs" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+ConfigRCS()
+{
+  Line =
+  # # Конфигурация поведения сценариев загрузки (rcS).
+  Message "$(gettext "# Configuring %s.")" "rcS" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  local config=/etc/default/rcS
+  local fsckfix=no
+
+  # При аварийном завершении работы, система может проверить и попытаться автоматически исправить ошибки файловой системы (FSCKFIX).
+  Message "$(gettext "When the emergency shutdown, the system can automatically check and try to fix file system errors (FSCKFIX).")"
+  # Хотите включить эту опцию?
+  if Confirm "$(gettext "Do you want to enable this option?")" -yes; then
+    fsckfix=yes
+  fi
+
+  # VERBOSE
+
+  SetValue /etc/default/rcS FSCKFIX $fsckfix =
+
+  Message "$(gettext "Done.")"
+}
+
+ConfigRCS

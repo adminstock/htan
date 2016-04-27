@@ -1,0 +1,179 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of NTP.
+#
+# USAGE:
+#   ntp [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   23.09.2015
+#
+# REVISION:
+#   19.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   NTP - network time protocol
+#
+# HTAN_CATEGORY:
+#   Services
+#
+# HTAN_OPTIONAL:
+#   false
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "ntp" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "ntp" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallNTP()
+{
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "NTP" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  PackageInstall ntp -confirm=false
+
+  Line
+
+  PackageInstall ntpdate -confirm=false
+
+  # sudo rm -rf /etc/localtime
+  # sudo ln -s /usr/share/zoneinfo/Europe/Moscow /etc/localtime
+
+  Line
+
+  ServiceStop ntp
+
+  Line
+
+  Execute -c="sudo cp $HTAN_PATH_DATA/ntp.conf /etc/ntp.conf >> $HTAN_LOG 2>&1" -m="$(gettext "Configuring %s …")" -a="NTP" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+  Line
+
+  ServiceStart ntp
+
+  Line
+
+  # Хотите провести тестирование?
+  if Confirm "$(gettext "Do you want to test?")" -no; then
+    Line
+    # Тестирование может занять длительное время.\nЕсли вы захотите прервать тестирование, нажмите клавишу Q.
+    Message "$(gettext "Testing can take a long time.\nIf you want to stop testing, press Q.")"
+    Line
+    # Тестирование NTP …
+    Message "$(gettext "Testing %s …")" "NTP" -n
+
+    $(sudo ntpq -pn >> $HTAN_LOG 2>&1 | grep -q ^\+)
+
+    local has_ntp=$?
+    local progress="."
+    local elapsed=0
+
+    stty -echo
+
+    while [[ $has_ntp == 1 ]]; do
+      Label "$(printf "%3s\n" "$progress") " -n -s="$DEF_STYLE_WAITING"
+      progress="$progress."
+      if ((${#progress}>3)); then 
+        progress=".";
+      fi
+
+      ((elapsed++))
+      if ! (($elapsed % 5)); then
+        $(sudo ntpq -pn >> $HTAN_LOG 2>&1 | grep -q ^\+)
+        has_ntp=$?
+        if [[ $has_ntp == 0 ]]; then 
+          OK
+        fi
+      elif (($elapsed > 600)); then
+        Fail
+        break
+      fi
+
+      read -t 1 -n 1 key > /dev/null
+
+      if [[ "$key" == "q" || "$key" == "Q" || "$key" == "й" || "$key" == "Й" ]]; then
+        Cancelled
+        break;
+      fi
+    done
+
+    # stty echo
+    Unblock
+
+    # Line
+    # Проверка завершена.
+    # Message "$(gettext "Testing completed.")"
+  fi
+
+  Line
+
+  ServiceStop ntp
+
+  Line
+
+  Message "$(gettext "Time synchronization …")" -n
+  local time_sync=false ntp_i
+  for (( ntp_i=1; ntp_i<3; ntp_i++ )); do
+    if sudo ntpdate -s "$ntp_i.pool.ntp.org"; then
+      time_sync=true
+      break;
+    fi
+  done
+
+  if [[ "$time_sync" == true ]]; then
+    OK
+  else
+    Fail
+  fi
+
+  Line
+
+  ServiceStart ntp
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallNTP

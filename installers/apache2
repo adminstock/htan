@@ -1,0 +1,160 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of Apache2.
+#
+# USAGE:
+#   apache2 [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.1
+#
+# CREATED:
+#   14.09.2015
+#
+# REVISION:
+#   17.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   Apache2
+#
+# HTAN_CATEGORY:
+#   Web Server
+#
+# HTAN_OPTIONAL:
+#   false
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "apache2" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "apache2" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallApache()
+{
+  # tested version
+  local tested=""
+  if [[ "$HTAN_TESTED" == true ]]; then
+    tested="-version=2.4.10"
+  fi
+  # // --
+
+  Line =
+  # # Установка и настройка %s.
+  Message "$(gettext "# Installing and configuring %s.")" "Apache2" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  PackageInstall apache2 -confirm=false -title="Apache2" $tested
+  Line
+
+  PackageInstall apache2-mpm-itk -confirm=false
+  Line
+
+  PackageInstall libapache2-mod-rpaf -confirm=false
+  Line
+
+  ServiceStop apache2
+
+  # disable autoindex (prohibition display of directories)
+  sudo a2dismod autoindex >/dev/null 2>&1 & disown
+
+  # config apache
+  local config="/etc/apache2/ports.conf"
+
+  # SetValue $config NameVirtualHost "127.0.0.1:8080" // obsolete
+  SetValue $config Listen "127.0.0.1:8080"
+
+  config="/etc/apache2/sites-enabled/000-default.conf"
+
+  if [[ ! -f "$config" ]]; then
+    config="/etc/apache2/sites-enabled/000-default"
+  fi
+
+  sudo sed -i "s/\(<VirtualHost\)\(.*\)\(>\)/\1 127.0.0.1:8080\3/" $config >> $HTAN_LOG 2>&1
+  wait
+
+  # оптимизация сервера
+  #if [ "$ram_size_mb" -le 512 ]; then
+    # /etc/apache2/apache2.conf
+    # KeepAlive Off
+    # StartServers 1
+    # MinSpareServers 3
+    # MaxSpareServers 6
+    # ServerLimit 24
+    # MaxClients 24
+    # MaxRequestsPerChild 3000
+  #fi
+
+  # rewriter
+  # ln -s /etc/apache2/mods-available/rewrite.load /etc/apache2/mods-enabled/rewrite.load
+
+  # config checking
+  # Тест на наличие ошибок …
+  Execute -c="sudo apachectl -t >> $HTAN_LOG 2>&1" -m="$(gettext "Testing for errors …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  Line
+
+  # testing
+  #if Confirm "Хотите проверить правильность работы Apache?" -yes -timeout=10; then
+    if ! ServiceIsRunning apache2; then
+      ServiceStart apache2
+      Line
+    fi
+
+    # Проверка работы %s …
+    Execute -c='sudo netstat -atunp|grep -Eq "127.0.0.1:8080.*apache" >> $HTAN_LOG 2>&1' -m="$(gettext "Testing %s …")" -a="Apache" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    
+    if [[ "$?" != 0 ]]; then
+      Line
+      # Вероятно Apache настроен неправильно.
+      Message "$(gettext "Perhaps Apache is configured incorrectly.")" -s="$DEF_STYLE_ERROR"
+      # Для получения деталей, ознакомьтесь с журналом ошибок Apache:
+      Message "$(gettext "For details, see the error log of Apache:")" -s="$DEF_STYLE_ERROR"
+      Message "sudo nano /var/log/apache2/error.log" -s="$DEF_STYLE_ERROR"
+      # Проверьте файлы /etc/apache2/ports.conf и /etc/apache2/sites-enabled/000-default.conf.
+      Message "$(gettext "Check the /etc/apache2/ports.conf and /etc/apache2/sites-enabled/000-default.conf.")" -s="$DEF_STYLE_ERROR"
+      # Для правильной работы с Nginx, следует ограничить обработку запросов Apache только локальным адресом 127.0.0.1:8080.
+      Message "$(gettext "To work with Nginx, Apache must listen on port %s.")" -a="127.0.0.1:8080" -s="$DEF_STYLE_ERROR"
+    fi
+  #fi
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallApache
