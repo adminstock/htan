@@ -64,7 +64,7 @@ if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
 fi
 
 # Including tools
-IncludeTool package config service web svn
+IncludeTool package config service web
 
 InstallSvn()
 {
