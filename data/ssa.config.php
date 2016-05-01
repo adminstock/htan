@@ -13,16 +13,6 @@ $config['widgets']['monitoring'] = ['Enabled' => TRUE];
 $config['widgets']['services'] = ['Enabled' => TRUE, 'Format' => '<div>%s</div>', 'NgInit' => 'SearchString = \'{WServices_SearchString}\'; Load()' ];
 $config['widgets']['sites'] = ['Enabled' => TRUE, 'Format' => '<div>%s</div>'];
 
-// client-side config
-$config['client'] = [
-  'WebServer' => 'nginx+apache',
-  'ApacheHost' => '{ApacheHost}',
-  'ApachePort' => {ApachePort},
-  'LogFolderName' => '.logs',
-  'PhpFastCgiPort' => {PhpFastCgiPort},
-  'AspNetFastCgiPort' => {AspNetFastCgiPort}
-];
-
 // SmallServerAdmin
 // $config['ssa_log_path'] = 'ssa.log';
 
@@ -66,3 +56,16 @@ $config["web_sitename_invalid_message"] = 'Site name must begin with the letters
 
 // dbadmin
 $config['dbadmin_list'] = [ {dbadmin_list} ];
+
+
+// client-side config
+$config['client'] = [
+  'WebServer' => 'nginx+apache',
+  'ApacheHost' => '{ApacheHost}',
+  'ApachePort' => {ApachePort},
+  'LogFolderName' => '.logs',
+  'PhpFastCgiPort' => {PhpFastCgiPort},
+  'AspNetFastCgiPort' => {AspNetFastCgiPort},
+  'ServerAddress' => $config['ssh_host'],
+  'ServerName' => $config['server_name']
+];

@@ -2,7 +2,7 @@
 
 All notable changes to HTAN will be documented in this file.
 
-## [1.0.56] - unreleased
+## [1.0.57] - unreleased
 ### Updated
 - ssa installer.
 
