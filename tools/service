@@ -220,7 +220,7 @@ ServiceIsRunning()
 
   # return $(ps ax | grep -v grep | grep -Pq ".*/$service\s+.*")
 
-  return $(sudo service --status-all | grep -Eq "\[\s+\+\s+\]\s+$service")
+  return $(sudo service --status-all 2> /dev/null | grep -Eq "\[\s+\+\s+\]\s+$service")
 }
 
 #----------------------------------------------------------------------
