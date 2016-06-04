@@ -1959,6 +1959,16 @@ HTAN_UNSTYLED="${HTAN_PARSE_ARGS_RESULT[nocolor]:-false}"
 HTAN_LOG="${HTAN_PARSE_ARGS_RESULT[log]:-/var/log/htan/installer.log}" # $HTAN_PATH_ROOT/htan.log
 # file for server info
 HTAN_SERVER_INFO="${HTAN_PARSE_ARGS_RESULT[output-server-info]:-/root/server.info}"
+if [[ "$HTAN_SERVER_INFO" == "/root/server.info" && "$SYS_OS_NAME" == "Ubuntu" ]]; then
+  if [[ -n "$SUDO_USER" && -d "/home/$SUDO_USER/server.info" ]]; then
+    HTAN_SERVER_INFO="/home/$SUDO_USER/server.info"
+  else
+    HTAN_SERVER_INFO="/var/log/htan/server.info"
+    if [[ ! -d "/var/log/htan" ]]; then
+      mkdir -p "/var/log/htan"
+    fi
+  fi
+fi
 # confirmed install
 HTAN_INSTALL_CONFIRMED="${HTAN_PARSE_ARGS_RESULT[confirmed]:-${HTAN_PARSE_ARGS_RESULT[y]:-${HTAN_PARSE_ARGS_RESULT[yes]:-false}}}"
 [[ "$HTAN_INSTALL_CONFIRMED" != true ]] && HTAN_INSTALL_CONFIRMED=false
