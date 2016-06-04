@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo, mono
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,13 +20,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.1
+#   1.0.3
 #
 # CREATED:
 #   13.04.2016
 #
 # REVISION:
-#   21.04.2016
+#   03.06.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2016. All rights reserved.
@@ -70,13 +70,14 @@ InstallHTANRunner()
 {
   local htan_runner_lib="/usr/lib/htan-runner"
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "HTAN.Runner" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "HTAN.Runner" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Демон HTAN.Runner предназначен для запуска и остановки процессов, выполнения различных команд.\nГлавным образом HTAN.Runner создавался для автоматического запуска fastcgi-mono-server, но его также можно использовать и для других целей.
-  Message "$(gettext "Daemon is designed to start and stop processes, and execution of any commands.\nMainly HTAN.Runner created for fastcgi-mono-server automatic start, but it can also be used for other purposes.")"
-  Line
+    Message "$(gettext "Daemon is designed to start and stop processes, and execution of any commands.\nMainly HTAN.Runner created for fastcgi-mono-server automatic start, but it can also be used for other purposes.")"
+    Line
+  fi
 
   if [[ -f "$htan_runner_lib/HTAN.Runner.exe" ]]; then
     Message "$(gettext "On this server is already installed %s.")" "HTAN.Runner"
@@ -84,15 +85,23 @@ InstallHTANRunner()
     return
   fi
 
-  if ! Confirm "$(gettext "Do you want to install %s?")" "HTAN.Runner" -yes; then
-    Message "$(gettext "Operation canceled by the user.")"
-    return
+  local installRunnerDefaultAnswer="-yes"
+  if ! PackageInstalled mono-devel; then
+    installRunnerDefaultAnswer="-no"
   fi
 
-  Line
+  if ! $HTAN_INSTALL_CONFIRMED; then
+    if ! Confirm "$(gettext "Do you want to install %s?")" "HTAN.Runner" "$installRunnerDefaultAnswer"; then
+      Line
+      Message "$(gettext "Operation canceled by the user.")"
+      return
+    else
+      Line
+    fi
+  fi
 
   # mono
-  if ! PackageExists mono-devel; then
+  if ! PackageInstalled mono-devel; then
     if [[ ! -f "$HTAN_PATH_INSTALLERS/mono" ]]; then
       Message "$(gettext "%s not found.")" "$HTAN_PATH_INSTALLERS/mono" -s="$DEF_STYLE_ERROR"
       return 1
@@ -103,7 +112,7 @@ InstallHTANRunner()
     fi
   fi
 
-  if ! PackageExists mono-devel; then
+  if ! PackageInstalled mono-devel; then
     Message "$(gettext "%s is required.")" "mono" -s="$DEF_STYLE_ERROR"
     return 1
   fi
@@ -114,10 +123,24 @@ InstallHTANRunner()
     Execute -c="rm $temp_file >> $HTAN_LOG 2>&1"
   fi
 
-  # todo: get and parse url of latest release
+  # get and parse url of latest release
+  local latestReleaseUrl="$(wget --no-check-certificate --quiet -O - "https://github.com/adminstock/htan-runner/releases/latest" | grep -P '<a(.+)href=".*/Binnary.zip"' | sed -r 's/.+"(.*\/Binnary\.zip)".+/\1/')"
+
+  if [[ -z "$latestReleaseUrl" ]]; then
+    Message "$(gettext "Failed to find the URL.")" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if [[ "${latestReleaseUrl:0:4}" != "http" ]]; then
+    if [[ "${latestReleaseUrl:0:1}" == "/" ]]; then
+      latestReleaseUrl="https://github.com$latestReleaseUrl"
+    else
+      latestReleaseUrl="https://github.com/$latestReleaseUrl"
+    fi
+  fi
 
   # download file
-  local command="wget -O $temp_file 'https://github.com/adminstock/htan-runner/releases/download/v1.0.3/Binnary.zip' >> $HTAN_LOG 2>&1"
+  local command="wget -O $temp_file '$latestReleaseUrl' >> $HTAN_LOG 2>&1"
   Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="HTAN.Runner" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
   Line
 
@@ -138,8 +161,9 @@ InstallHTANRunner()
   fi
 
   # check unzip
-  if ! PackageExists unzip; then
+  if ! PackageInstalled unzip; then
     PackageInstall unzip -confirm=false
+    Line
   fi
 
   # extract files
@@ -158,7 +182,8 @@ InstallHTANRunner()
   Execute -c="cp $htan_runner_lib/htan-runner /etc/init.d/htan-runner >> $HTAN_LOG 2>&1 && chmod +x /etc/init.d/htan-runner >> $HTAN_LOG 2>&1 && update-rc.d htan-runner defaults >> $HTAN_LOG 2>&1" -m="$(gettext "Daemon registration …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
 
   # pev for version number extraction
-  if ! PackageExists pev; then
+  if ! PackageInstalled pev; then
+    Line
     PackageInstall pev -confirm=false
   fi
 

@@ -13,13 +13,13 @@
 #          [--delimiter="delimiter of key and value"]
 #
 # NAME:
-#   HTAN Config Tool
+#   HTAN for Configs
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -35,7 +35,7 @@
 #   14.09.2015
 #
 # REVISION:
-#   19.04.2016
+#   25.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -64,9 +64,6 @@ if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
 fi
 
 HTAN_INCLUDED_TOOLS=("${HTAN_INCLUDED_TOOLS[@]}" "config")
-
-# last saved file for log
-declare LAST_SAVED_FILE=""
 
 #======================================================================
 # Sets the specified value for the specified settings in the 
@@ -149,7 +146,7 @@ SetValue()
   # and create format for two columns and specific styles
   local sv_format="${sv_color_k}%-$((${sv_size}-10))s${sv_reset_color_k} ${sv_color_v}%-${sv_size}s${sv_reset_color_v}"
 
-  if [[ "$LAST_SAVED_FILE" != "$sv_file" ]]; then
+  if [[ "$HTAN_LAST_SAVED_CONF" != "$sv_file" ]]; then
     Line =
     Message "$(gettext "File %s")" -a="$sv_file" -s="$DEF_STYLE_CONFIG_FILE"
     Line =
@@ -185,7 +182,7 @@ SetValue()
 
   Line
 
-  LAST_SAVED_FILE=$sv_file
+  HTAN_LAST_SAVED_CONF=$sv_file
 
   return 0
 }
@@ -373,7 +370,7 @@ INI_SetValue()
   # and create format for two columns and specific styles
   local isv_format="${isv_color_k}%-$((${isv_size}-10))s${isv_reset_color_k} ${isv_color_v}%-${isv_size}s${isv_reset_color_v}"
 
-  if [[ "$LAST_SAVED_FILE" != "$isv_file" ]]; then
+  if [[ "$HTAN_LAST_SAVED_CONF" != "$isv_file" ]]; then
     Line =
     Message "$(gettext "File %s")" -a="$isv_file" -s="$DEF_STYLE_CONFIG_FILE"
     Line =
@@ -429,7 +426,7 @@ INI_SetValue()
 
   Line
 
-  LAST_SAVED_FILE=$isv_file
+  HTAN_LAST_SAVED_CONF=$isv_file
 
   return 0
 }
@@ -497,9 +494,11 @@ INI_GetValue()
 
   igvs_section="[$igvs_section]"
 
+  SetIFS
+
   # search section
   local igv_line igv_key igv_value
-  while IFS='' read -r igv_line || [[ -n "$igv_line" ]]; do
+  while read -r igv_line || [[ -n "$igv_line" ]]; do
     # is section or not
     if [[ "${igv_line:0:1}" != "[" ]]; then
       continue
@@ -508,8 +507,11 @@ INI_GetValue()
     if [[ "$igv_line" != "$igvs_section" ]]; then
       continue
     fi
+
+    SetIFS '='
+
     # search key
-    while IFS='=' read -r igv_key igv_value; do
+    while read -r igv_key igv_value; do
       if [[ "${igv_key:0:1}" = "[" ]]; then
         # new section, exit
         break
@@ -517,14 +519,21 @@ INI_GetValue()
       if [[ "$(Trim "$igv_key")" != "$igvs_key" ]]; then
         continue
       fi
+      ResetIFS
       # output
       echo "$(Trim "$igv_value")"
       # successfully
       return 0
     done
+
+    ResetIFS
+
     # section found, but key not found
     return 2
   done < $igv_file
+
+  ResetIFS
+
   # section not found
   return 3
 }
@@ -591,7 +600,7 @@ ReplaceMarker()
     rm_format="%-$((${rm_size}-10))s %-${rm_size}s"
   fi
 
-  if [[ "$LAST_SAVED_FILE" != "$rm_file" ]]; then
+  if [[ "$HTAN_LAST_SAVED_CONF" != "$rm_file" ]]; then
     Line =
     # Файл %s
     Message "$(gettext "File %s")" -a="$rm_file" -s="$DEF_STYLE_CONFIG_FILE"
@@ -627,7 +636,7 @@ ReplaceMarker()
 
   Line
 
-  LAST_SAVED_FILE=$rm_file
+  HTAN_LAST_SAVED_CONF=$rm_file
 
   return 0
 }

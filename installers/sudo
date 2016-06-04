@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, HTAN Tools
+#   Debian 7/8
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,13 +20,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.1
+#   1.0.2
 #
 # CREATED:
 #   23.09.2015
 #
 # REVISION:
-#   12.04.2016
+#   25.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -75,13 +75,15 @@ InstallSudo()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "sudo" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "sudo" -s="$DEF_STYLE_HEADER"
+    Line =
+  fi
 
-  if PackageExists sudo; then
-    # В системе найден пакет sudo. Установка пакета не требуется.
+  if PackageInstalled sudo; then
     Message "$(gettext "The system found a package %s. Installing is not required.")." "sudo"
+    Line
 
     local need_config="-no"
 
@@ -94,18 +96,15 @@ InstallSudo()
       Debug "HTAN_USER: $HTAN_USER=$need_config"
     fi
 
-    # Хотите провести конфигурацию sudo?
     if ! Confirm "$(gettext "Would you like to configure %s?")" "sudo" $need_config; then
-      # Операция прервана пользователем.
+      Line
       Message "$(gettext "Operation canceled by the user.")"
       return
     fi
   else
-    # Программа sudo предназначена для предоставления пользователям ограниченных прав суперпользователя, для выполнения задач по управлению сервером и сохранения максимального уровня безопасности.
     Message "$(gettext "Sudo is a program that allows users to run programs with the security privileges of another user, by default the superuser.")"
     Line
     if ! PackageInstall sudo -confirm=false -root $tested; then
-      # Произошла ошибка при установке sudo. Без sudo продолжать не имеет смысла.
       Error "$(gettext "An error occurred while installing sudo. Continued impossible.")"
     fi
     Line
@@ -116,8 +115,6 @@ InstallSudo()
 
   local add_other_user="-yes"
   if [[ "$USER" != "root" ]]; then
-    #if Confirm "Хотите добавить пользователя $USER в группу sudo?"; then
-    # Добавление пользователя %s в группу %s
     Message "$(gettext "Adding %s to the %s …")" "$USER" "sudo" -n
     {
       # addgroup $USER sudo
@@ -125,64 +122,59 @@ InstallSudo()
     } || {
       Fail
     }
-    #fi
     Line
   fi
 
-  # Для полноценной работы с sudo, доверенные пользователи должны входить в группу sudo.
   Message "$(gettext "Trusted users must be members of the sudo group.")"
   Line
 
   local username
   local htan_user_added=false
 
+  if [[ "$USER" == "root" ]]; then
+    # get username by id=1000
+    username="$(grep 1000 /etc/passwd | cut -f1 -d:)"
+  fi
+
   while true; do
 
-    # Хотите добавить пользователя в группу %s?
     if ! Confirm "$(gettext "Do you want to add a new member to the %s?")" "sudo" $add_other_user; then
       break
     fi
 
     Line
 
-    # Введите имя пользователя, которого следует добавить в группу %s:
     Message "$(gettext "Enter a username, which must be added to the %s:")" "sudo" -s="$DEF_STYLE_ENTER"
 
-    Debug "$HTAN_USER / $USER / $htan_user_added"
-    if [[ $htan_user_added = false && "$HTAN_USER" != "$USER" ]]; then
-      Read -e -i "$HTAN_USER" username
+    if [[ -n "$username" ]]; then
+      Read -e -i "$username" username
     else
       Read username
     fi
 
     if [[ -n "$username" ]]; then
       Line
-      # "Добавление %s в группу %s …"
       Message "$(gettext "Adding %s to the %s …")" "$username" "sudo" -n -s="$DEF_STYLE_ACTION"
 
       if id -u "$username" >/dev/null 2>&1; then
         {
-          # addgroup $username sudo
+          # add $username to sudo group
           (su root -c "usermod -a -G sudo $username" > /dev/null 2>&1; wait) && 
           {
             OK
-            if [[ $htan_user_added = false && "$HTAN_USER" = "$username" ]]; then
-              htan_user_added=true
-            fi
-            Debug "$HTAN_USER = $htan_user_added"
           }
         } || {
           Fail
         }
+
+        username=""
       else
         Fail
-        # Ошибка: Пользователь %s не найден.
         Message "$(gettext "Error: User %s not found.")" "$username" -s="$DEF_STYLE_ERROR"
       fi
 
       Line
     else
-      # Ошибка: Имя пользователя не может быть пустым.
       Message "$(gettext "Error: Username is required. Value cannot be empty.")" -s="$DEF_STYLE_ERROR"
       add_other_user="-no"
     fi

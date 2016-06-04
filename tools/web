@@ -18,13 +18,13 @@
 #       [--host="example.org" [--confirm=true|false]]
 #
 # NAME:
-#   HTAN Web Tool
+#   HTAN for Web
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, Nginx, Apache2, HTAN Tools
+#   Debian 7/8, sudo, Nginx, Apache2
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -40,7 +40,7 @@
 #   21.11.2015
 #
 # REVISION:
-#   19.04.2016
+#   29.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -121,13 +121,11 @@ AddSiteToNginx()
   done
 
   if [[ -z "$nginx_site_conf_source" ]]; then
-    # Невозможно настроить %s. Файл шаблона не указан.
     Message "$(gettext "Unable to configure %s. The template file is not specified.")" -a="Nginx" -s="$DEF_STYLE_ERROR"
     return 1
   fi
 
   if [[ -z "$nginx_site_host" ]]; then
-    # Невозможно настроить %s. Имя хоста не указано.
     Message "$(gettext "Unable to configure %s. The hostname is not specified.")" -a="Nginx" -s="$DEF_STYLE_ERROR"
     return 1
   fi
@@ -137,7 +135,6 @@ AddSiteToNginx()
   fi
 
   if [[ ! -f "$nginx_site_conf_source" ]]; then
-    # Невозможно настроить %s. Шаблон %s не найден.
     Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="Nginx" -a="$nginx_site_conf_source" -s="$DEF_STYLE_ERROR"
     return 1
   fi
@@ -145,7 +142,6 @@ AddSiteToNginx()
   local nginx_site_conf_target="/etc/nginx/sites-available/$nginx_site_host.conf"
 
   if [[ -f "$nginx_site_conf_target" ]]; then
-    # Сайт %s уже существует. Хотите перезаписать файл конфигурации сайта?
     Message "$(gettext "Site %s already exists.")" "$nginx_site_host"
     Line
 
@@ -158,7 +154,6 @@ AddSiteToNginx()
 
   # create site config
   local c="sudo cp --force $nginx_site_conf_source $nginx_site_conf_target >> $HTAN_LOG 2>&1"
-  # Добавление сайта %s в %s …
   Execute -c="$c" -m="$(gettext "Configure %s with %s …")" -a="$nginx_site_host" -a="Nginx" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
 
   # set host
@@ -172,7 +167,6 @@ AddSiteToNginx()
   # enable site
   if [[ ! -f "/etc/nginx/sites-enabled/$nginx_site_host.conf" && -f $nginx_site_conf_target && $nginx_site_enabled == true ]]; then
     c="sudo ln -s $nginx_site_conf_target /etc/nginx/sites-enabled/ >> $HTAN_LOG 2>&1"
-    # Активация сайта %s …
     Execute -c="$c" -m="$(gettext "Activation %s …")" -a="$nginx_site_host" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
   else
     Message "$(gettext "Activation is not required.")" -n -s="$DEF_STYLE_ACTION_COMP"
@@ -233,13 +227,11 @@ AddSiteToApache()
   done
 
   if [[ -z "$apache_site_conf_source" ]]; then
-    # Невозможно настроить %s. Файл шаблона не указан.
     Message "$(gettext "Unable to configure %s. The template file is not specified.")" -a="Apache" -s="$DEF_STYLE_ERROR"
     return 1
   fi
 
   if [[ -z "$apache_site_host" ]]; then
-    # Невозможно настроить %s. Имя хоста не указано.
     Message "$(gettext "Unable to configure %s. The hostname is not specified.")" -a="Apache" -s="$DEF_STYLE_ERROR"
     return 1
   fi
@@ -249,7 +241,6 @@ AddSiteToApache()
   fi
 
   if [[ ! -f "$apache_site_conf_source" ]]; then
-    # Невозможно настроить %s. Шаблон %s не найден.
     Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="Apache" -a="$apache_site_conf_source" -s="$DEF_STYLE_ERROR"
     return 1
   fi
@@ -257,7 +248,6 @@ AddSiteToApache()
   local apache_site_conf_target="/etc/apache2/sites-available/$apache_site_host.conf"
 
   if [[ -f "$apache_site_conf_target" ]]; then
-    # Сайт %s уже существует. Хотите перезаписать файл конфигурации сайта?
     Message "$(gettext "Site %s already exists.")" "$apache_site_host"
     Line
 
@@ -270,7 +260,6 @@ AddSiteToApache()
 
   # create site config
   local c="sudo cp --force $apache_site_conf_source $apache_site_conf_target >> $HTAN_LOG 2>&1"
-  # Добавление сайта %s в %s …
   Execute -c="$c" -m="$(gettext "Configure %s with %s …")" -a="$apache_site_host" -a="Apache" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
 
   # set host
@@ -284,7 +273,6 @@ AddSiteToApache()
   # enable site
   if [[ -f $apache_site_conf_target && $apache_site_enabled == true ]]; then
     c="sudo a2ensite $apache_site_host.conf >> $HTAN_LOG 2>&1"
-    # Активация сайта %s …
     Execute -c="$c" -m="$(gettext "Activation %s …")" -a="$apache_site_host" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
   else
     Message "$(gettext "Activation is not required.")" -n -s="$DEF_STYLE_ACTION_COMP"
@@ -327,9 +315,7 @@ AddHost()
 
   if [[ "$host" != "$HTAN_SERVER_IP" ]]; then
     if [[ "$confirm" == true ]]; then
-      # Если этот сервер используется для тестирования и адрес $host не является настоящим, для удобства можно прописать его в файле /etc/hosts. Это позволит обращаться к сайту через браузер.
       Message "$(gettext "If the current server to test, for the convenience can be set the %s in the file /etc/hosts. It allows to access the site through a browser.")" "$host"
-      # Но не стоит этого делать, если сервер настоящий/боевой!
       Message "$(gettext "Do not do this if the server does not for tests!")" -s="$DEF_STYLE_WARNING"
       Line
       
@@ -338,7 +324,6 @@ AddHost()
         ah_yn="-yes"
       fi
 
-      # Хотите добавить $host в /etc/hosts?
       if ! Confirm "$(gettext "Are you want add %s to the /etc/hosts?")" -a="$host" $ah_yn; then
         allow=false
       fi
@@ -347,15 +332,12 @@ AddHost()
     if [[ $allow == true ]]; then
       if ! $(grep -q "^$HTAN_SERVER_IP\s*$host" /etc/hosts); then
         Line
-        # Добавление записи в /etc/hosts …
         Execute -c="sudo echo -e \"$HTAN_SERVER_IP\t$host\" >> /etc/hosts" -m="$(gettext "Adding the hostname to the /etc/hosts …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
       fi
 
       Line
 
-      # На клиентских машинах вы также можете ассоциировать $host с адресом сервера $HTAN_SERVER_IP, чтобы работать с сайтом. Если у вас Windows, то файл hosts можно найти в папке C:\Windows\System32\drivers\etc.
-      Message "$(gettext "On the client machines, you can also associate the %s with the %s. For Windows, the hosts file can be found in the folder C:\Windows\System32\drivers\etc.")" "$host" "$HTAN_SERVER_IP"
-      # Если хост $host в будущем станет полноценным и доступным для внешнего мира, не забудьте удалить запись из ваших файлов hosts (на сервере и у клиентов), чтобы избежать путаницы.
+      Message "$(gettext "On the client machines, you can also associate the %s with the %s. For Windows, the hosts file can be found in the folder C:/Windows/System32/drivers/etc.")" "$host" "$HTAN_SERVER_IP"
       Message "$(gettext "Once testing is complete, to avoid problems, do not forget to remove %s of hosts on the server and clients.")" "$host" -s="$DEF_STYLE_WARNING"
       PressAnyKey
     fi

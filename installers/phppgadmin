@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, PostgreSQL, Nginx, Apache2, HTAN Tools
+#   Debian 7/8, sudo, PostgreSQL, Nginx
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,13 +20,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.1
+#   1.0.2
 #
 # CREATED:
 #   13.10.2015
 #
 # REVISION:
-#   17.04.2016
+#   03.06.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -64,7 +64,7 @@ if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
 fi
 
 # Including tools
-IncludeTool package service config web
+IncludeTool package service config web php
 
 declare HTAN_PGADMIN_HOST=""
 
@@ -77,33 +77,70 @@ InstallPhpPgAdmin()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "phpPgAdmin" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "phpPgAdmin" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Для управления PostgreSQL рекомендуется установить веб-панель - phpPgAdmin.
-  Message "$(gettext "phpPgAdmin is a web application, written in PHP, for managing PostgreSQL databases.")"
-  Line
+    Message "$(gettext "phpPgAdmin is a web application, written in PHP, for managing PostgreSQL databases.")"
+    Line
+  fi
 
-  local phppgadmin_exists=$(PackageExists phppgadmin && echo true || echo false)
+  local phppgadmin_exists=$(PackageInstalled phppgadmin && echo true || echo false)
 
   if [[ $phppgadmin_exists == true ]]; then
     Message "$(gettext "On this server is already installed %s.")" "phpPgAdmin"
+    Line
+
     if ! Confirm "$(gettext "Would you like to configure? (the current settings will be overwritten)")" -yes; then
+      Line
       Message "$(gettext "Operation canceled by the user.")"
       return
+    fi
+  else
+    if ! $HTAN_INSTALL_CONFIRMED; then
+      if ! Confirm "$(gettext "Do you want to install %s?")" "phpPgAdmin" -yes; then
+        Line
+        Message "$(gettext "Installation canceled by the user.")"
+        return
+      fi
+    else
+      Line
     fi
   fi
 
   if [[ $phppgadmin_exists == false ]]; then
-    if ! PackageInstall phppgadmin -confirm=true -title="phpPgAdmin" $tested; then
+    # web server is required, otherwise unnecessary dependencies can be installed
+    if ! $HTAN_INSTALL_CONFIRMED && ! PackageInstalled apache2 && ! PackageInstalled php5-fpm && ! PackageInstalled php7.0-fpm && ! PackageInstalled php-fpm; then
+      Line
+      Message "$(gettext "For %s requires %s, otherwise unnecessary dependencies can be installed with the package.")" "phpPgAdmin" "PHP-FPM >= 5"
+      Line
+
+      if Confirm "$(gettext "Do you want to install %s?")" "PHP-FPM" -yes; then
+        Line
+        RunInstaller php --confirmed --noheaders --noincmsg
+      else
+        Line
+
+        if ! Confirm "$(gettext "Do you want to continue %s install?")" "phpPgAdmin" -no; then
+          Line
+          Message "$(gettext "Installation canceled by the user.")"
+          return
+        fi
+      fi
+    fi
+
+    Line
+
+    # install phpPgAdmin
+    if ! PackageInstall phppgadmin -confirm=false -title="phpPgAdmin" -no-install-recommends $tested; then
       Line
       Message "$(gettext "Done.")"
       return
     fi
-  fi
 
-  Line
+    Line
+  fi
 
   # config phpPgAdmin
   local phppgadmin_config_source="$HTAN_PATH_DATA/phppgadmin.config.inc.php"
@@ -149,8 +186,15 @@ InstallPhpPgAdmin()
     AddHost "$phppgadmin_host"
     Line
 
+    local php_fpm="$(GetPhpFpmListen | head -1)"
+
+    # is unix socket
+    if [[ "$php_fpm" =~ ".sock" ]]; then
+      php_fpm="unix:$php_fpm"
+    fi
+
     # Nginx only
-    AddSiteToNginx -host="$phppgadmin_host" -source="phppgadmin-nginx-only.conf"
+    AddSiteToNginx -host="$phppgadmin_host" -source="phppgadmin-nginx-only.conf" -php-fpm="$php_fpm"
     Line
 
     # Nginx + Apache

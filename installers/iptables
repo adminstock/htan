@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,7 +26,7 @@
 #   23.11.2015
 #
 # REVISION:
-#   20.04.2016
+#   25.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -76,13 +76,14 @@ InstallIptables()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "iptables" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "iptables" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Iptables - утилита командной строки, является стандартным интерфейсом управления работой межсетевого экрана (брандмауэра) netfilter.
-  Message "$(gettext "Iptables is an extremely flexible firewall utility built for Linux operating systems.")"
-  Line -
+    Message "$(gettext "Iptables is an extremely flexible firewall utility built for Linux operating systems.")"
+    Line -
+  fi
 
   PackageInstall "iptables" -confirm=false ${tested[iptables]}
   Line -
@@ -90,7 +91,6 @@ InstallIptables()
   PackageInstall "iptables-persistent" -confirm=false ${tested[iptables-persistent]}
   Line -
 
-  # Разрешить внешний ping сервера?
   Confirm "$(gettext "Do you want to allow external ping of the server?")" -yes
   local allow_ping=$?
 
@@ -103,7 +103,7 @@ InstallIptables()
   local ports=($ssh_port 20 21 80 443)
   local ftp_pasv_enable ftp_pasv_min_port ftp_pasv_max_port
 
-  if PackageExists vsftpd; then
+  if PackageInstalled vsftpd; then
     ftp_pasv_enable="$(GetValue /etc/vsftpd.conf pasv_enable =)"
     ftp_pasv_min_port="$(GetValue /etc/vsftpd.conf pasv_min_port =)"
     ftp_pasv_max_port="$(GetValue /etc/vsftpd.conf pasv_max_port =)"
@@ -152,13 +152,12 @@ InstallIptables()
 
   Line -
 
-  local ipt_see_rules="-yes"
-  # Хотите посмотреть созданные правила для %s?
-  if Confirm "$(gettext "Do you want to see the rules created for %s?")" -a="IPv4" -yes; then
+  local ipt_see_rules="-no"
+
+  if Confirm "$(gettext "Do you want to see the rules created for %s?")" -a="IPv4" -no; then
     Line -
     sudo iptables -L | less -RXFE --prompt="$(gettext "HELP -- Press RETURN for more, or Q for exit")"
-  else
-    ipt_see_rules="-no"
+    ipt_see_rules="-yes"
   fi
 
   Line -
@@ -174,7 +173,6 @@ InstallIptables()
   IptablesCommand "ip6tables -F" "Deleting all chains …"
   IptablesCommand "ip6tables -X" "Deleting user-defined chain …"
 
-  # Создать правила для IPv6?
   if [[ $ip6_need = 0 ]]; then
     # accepts all established inbound connections
     IptablesCommand "ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT" "Accepts all established inbound connections"

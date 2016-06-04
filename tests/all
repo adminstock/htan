@@ -15,7 +15,7 @@ t_all_path="$(cd "$(dirname "$0")" && pwd)"
 cd "$t_all_path"
 
 for t_all_f in $t_all_path/*; do
-  if [[ "$(basename "$t_all_f")" == "$t_all_name" ]]; then
+  if [[ "$(basename "$t_all_f")" == "$t_all_name" || "$(basename "$t_all_f")" == "README.md" || "$(basename "$t_all_f")" == "README.ru.md" ]]; then
     continue
   fi
 

@@ -4,13 +4,13 @@
 # Performs installation and configuration of PHP5.
 #
 # USAGE:
-#   php5 [--debug] [--version] [--help] [--nocolor] [--tested]
+#   php5 [--debug] [--version] [--help] [--nocolor]
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,16 +20,16 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.0
+#   1.0.1
 #
 # CREATED:
 #   20.09.2015
 #
 # REVISION:
-#   25.11.2015
+#   27.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -68,56 +68,62 @@ IncludeTool package service config
 
 InstallPHP5()
 {
-  # tested version
-  local -A tested
-  if [[ "$HTAN_TESTED" == true ]]; then
-    tested[php5]="-version=5.6.14"
-    tested[php5-dev]="-version=5.6.14"
-    tested[libapache2-mod-php5]="-version=5.6.14"
-    tested[php5-fpm]="-version=5.6.14"
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "PHP5" -s="$DEF_STYLE_HEADER"
+    Line =
   fi
-  # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "PHP5" -s="$DEF_STYLE_HEADER"
-  Line =
+  if [[ "$SYS_OS_NAME" == "Ubuntu" ]]; then
+    Message "$(gettext "Not available for %s.")" "$SYS_OS_NAME" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
 
-  if ! PackageInstall "php5" -confirm=true -title="PHP5" ${tested[php5]}; then
+  if PackageInstalled "php7" || PackageInstalled "php7.0"; then
+    Message "$(gettext "On this server is already installed %s.")" "PHP7"
+    Message "$(gettext "Installation of %s is not possible.")." "PHP5"
+    return
+  fi
+
+  if ! $HTAN_INSTALL_CONFIRMED; then
+    if ! Confirm "$(gettext "Do you want to install %s?")" "PHP5" -yes; then
+      Line
+      Message "$(gettext "Installation canceled by the user.")"
+      return
+    else
+      Line
+    fi
+  fi
+
+  if PackageInstalled apache2; then
+    PackageInstall "php5" -confirm=false -title="PHP5"
     Line
-    return 0
-  fi
-
-  Line
-  PackageInstall php5-fpm -confirm=false ${tested[php5-fpm]}
-
-  Line
-
-  PackageInstall libapache2-mod-php5 -confirm=false ${tested[libapache2-mod-php5]}
-  Line
-
-  #ServiceRestart apache2
-
-  # http://php.net/manual/ru/ini.list.php
-  # http://php.net/manual/en/ini.list.php
-
-  # post_max_size=100M
-  # upload_max_filesize
-  # date.timezone = "Europe/Moscow"
-  # session.save_path = "/tmp"
-  # short_open_tag
-  # expose_php
-  # memory_limit
-  # user_dir = "www"
-  # upload_tmp_dir
-  # file_uploads - разрешена закачка файлов или нет
-
-  # Хотите установить пакет для разработчиков PHP5?
-  if Confirm "$(gettext "Do you want to install the Developer Tools for PHP5?")" -no; then
+    PackageInstall libapache2-mod-php5 -confirm=false
     Line
-    PackageInstall "php5-dev" -confirm=false ${tested[php5-dev]}
-    # Line
-    # PackageInstall "phpize" -confirm=true -title="Средство компиляции расширяемых модулей"
   fi
+
+  PackageInstall php5-fpm -confirm=false
+  Line
+
+  PackageInstall php5-cgi -confirm=false
+  Line
+
+  if Confirm "$(gettext "Do you want to install the Developer Tools for %s?")" "PHP5" -no; then
+    Line
+    PackageInstall "php5-dev" -confirm=false
+  fi
+
+  ServerInfo "PHP5:\n"
+  ServerInfo "--------------------------------------------\n"
+  ServerInfo "$(gettext "Location"): $phpPath\n"
+  if PackageInstalled apache2; then
+    ServerInfo "$(gettext "Config file"): /etc/php5/apache2/php.ini\n"
+  fi
+  ServerInfo "$(gettext "Config file"): /etc/php5/cli/php.ini\n"
+  ServerInfo "$(gettext "Config file"): /etc/php5/fpm/php.ini\n"
+  ServerInfo "$(gettext "Daemon name"): php5-fpm\n"
+  ServerInfo "$(gettext "Socket"): /var/run/php5-fpm.sock\n"
+  ServerInfo "--------------------------------------------\n\n"
 
   Line
   Message "$(gettext "Done.")"

@@ -4,13 +4,13 @@
 # Performs installation and configuration of PostgreSQL.
 #
 # USAGE:
-#   postgresql [--debug] [--version] [--help] [--nocolor] [--tested]
+#   postgresql [--debug] [--version] [--help] [--nocolor]
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8 or Ubuntu 14+, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,16 +20,16 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.0
+#   1.0.1
 #
 # CREATED:
 #   23.09.2015
 #
 # REVISION:
-#   18.10.2015
+#   28.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -72,32 +72,25 @@ InstallPostgreSQL()
 {
   # http://www.postgresql.org/download/linux/debian/
 
-  # tested version
-  local tested
-  if [[ "$HTAN_TESTED" == true ]]; then
-    tested="-version=9.4"
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "PostgreSQL" -s="$DEF_STYLE_HEADER"
+    Line =
+
+    Message "$(gettext "PostgreSQL is an object-relational database management system (ORDBMS) with an emphasis on extensibility and standards-compliance.")"
+    Line
   fi
-  # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "PostgreSQL" -s="$DEF_STYLE_HEADER"
-  Line =
-
-  # PostgreSQL - свободная, высокопроизводительная, легко масштабируемая объектно-реляционная система управления базами данных (СУБД).
-  Message "$(gettext "PostgreSQL is an object-relational database management system (ORDBMS) with an emphasis on extensibility and standards-compliance.")"
-  Line
-
-  if ! PackageInstall postgresql -confirm=true -title="PostgreSQL" $tested; then
-    # Сервер PostgreSQL не был установлен.
+  if ! PackageInstall postgresql -confirm="$(NeedUserConfirmationToInstall true)" -title="PostgreSQL"; then
+    Line
     Message "$(gettext "Installation canceled by the user.")"
     return
   fi
 
   Line
 
-  # Придумайте и введите пароль администратора PostgreSQL:
-  # Без пароля сервер PostgreSQL будет уязвим!
   if ! EnterPassword -t="$(printf "$(gettext "Come up and enter the root password for %s:")" "PostgreSQL")" -w="$(printf "$(gettext "Without password %s is unsafe!")" "PostgreSQL")" -o; then
+    Line
     Message "$(gettext "%s server was not configured correctly. Operation canceled by the user.")" "PostgreSQL"
     return
   fi
@@ -107,7 +100,7 @@ InstallPostgreSQL()
   HTAN_PGSQL_ROOT_PASSWORD="$HTAN_PASSWORD"
 
   local c="su - postgres -c \"psql -c \\\"ALTER USER postgres WITH PASSWORD '$HTAN_PGSQL_ROOT_PASSWORD';\\\"\" >> $HTAN_LOG 2>&1"
-  # Установка пароля администратора PostgreSQL …
+
   Execute -c="$c" -m="$(gettext "Setting the root password for %s …")" -a="PostgreSQL" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
 
   # /etc/postgresql/9.4/main/pg_hba.conf

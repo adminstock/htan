@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# Tests for /../tools/php
+
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    echo -n "Including the common …"
+    source "$(cd $(dirname $0) && pwd)/../tools/common" && OK
+  } || {
+    echo ""
+    echo -e "\033[1;31mFailed to include the common.\033[0m"
+    exit 1
+  }
+fi
+
+IncludeTool php
+
+Line
+
+versions=(\
+  5 5.0 5.1 5.2 5.3 5.4 5.5 5.6 
+  7 7.0 7.0.1 7.0.2 7.0.3 7.0.4 7.0.5 7.0.6 7.0.7 7.0.8 
+  7.1 7.2 7.3 7.4 7.5 7.6 7.7
+)
+
+Line "#"
+Message "# PHP Exists" -s="$DEF_STYLE_HEADER"
+Line "#"
+
+if PhpExists; then
+  Message "PHP exists."
+  for v in ${versions[@]}; do
+    Message "v%s => %s" "$v" "${PhpExists --version=$v && echo \"true\" || echo \"false\"}"
+  done
+else
+  Message "PHP not found."
+fi
+
+tests=(\
+  "GetAllInstalledPhpVersions" "GetPhp" "GetPhpFpm" 
+  "GetPhpize" "GetPhpConfig" "GetPhpModsAvailablePath" 
+  "GetPhpFpmListen" "GetPhpIniPath"
+)
+
+for method in ${tests[@]}; do
+  Line "#"
+  Message "# $method" -s="$DEF_STYLE_HEADER"
+  Line "#"
+
+  Message 'All:'
+  Line
+  ${method} || echo "<empty>"
+  Line
+
+  Message "version 5:"
+  Line
+  ${method} --version=5 || echo "<empty>"
+  Line
+
+  Message "version 5.6:"
+  Line
+  ${method} --version=5.6 || echo "<empty>"
+  Line
+
+  Message "version 7:"
+  Line
+  ${method} --version=7 || echo "<empty>"
+  Line
+
+  Message "version 5 and 7:"
+  Line
+  ${method} --version=5,7 || echo "<empty>"
+done
+
+Line
+
+Message "Complete."

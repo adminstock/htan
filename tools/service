@@ -11,13 +11,13 @@
 #           [--is[-running]="Service name"]
 #
 # NAME:
-#   HTAN Service Tool
+#   HTAN for Services
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -33,7 +33,7 @@
 #   19.09.2015
 #
 # REVISION:
-#   19.04.2016
+#   04.06.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -84,18 +84,13 @@ ServiceStart()
     sesta_name="$1"
     Debug " -- %s" "$sesta_name"
     if ServiceIsRunning "$sesta_name"; then
-      # Служба %s уже запущена.
       Message "$(gettext "%s is already running.")" "$sesta_name" -s="$DEF_STYLE_SERVICE_COMP"
     else
       local c="sudo service $sesta_name start >> $HTAN_LOG 2>&1"
-      # Запуск службы %s …
       Execute -c="$c" -m="$(gettext "Starting the service %s …")" -a="$sesta_name" -sp="$DEF_STYLE_SERVICE_PROC" -sc="$DEF_STYLE_SERVICE_COMP"
       if [[ $? != 0 ]]; then
-        # Не удалось запустить %s. Попробуйте выполнить операцию вручную.
         Message "$(gettext "Unable to start the service %s. Try to perform the operation manually.")" "$sesta_name" -s="$DEF_STYLE_ERROR"
-        # Для получения подробностей, ознакомтесь с файлом журнала %s.
         Message "$(gettext "For details, see the log file: %s.")" "$HTAN_LOG" -s="$DEF_STYLE_ERROR"
-        # Последние записи из журнала:
         Message "$(gettext "Last log records:")" -s="$DEF_STYLE_ERROR"
         ShowLastLogRecords -s="$DEF_STYLE_ERROR"
         return 1
@@ -126,8 +121,16 @@ ServiceStop()
     sesto_name="$1"
     Debug " -- %s" "$sesto_name"
     if ServiceIsRunning "$sesto_name"; then
-      local c="sudo service $sesto_name stop >> $HTAN_LOG 2>&1"
-      # Остановка службы %s …
+      local c="sudo service $sesto_name stop >> $HTAN_LOG 2>&1; sleep 1; "
+      c+="ss_waiting=1; "
+      c+='while $(ServiceIsRunning '"$sesto_name"'); do '
+      c+="sleep 1; "
+      c+="((ss_waiting++)); "
+      c+="if (( ss_waiting > 30 )); then "
+      c+="Debug 'Stopping Timeout.'; "
+      c+="break; "
+      c+="fi; "
+      c+="done"
       Execute -c="$c" -m="$(gettext "Stopping the service %s …")" -a="$sesto_name" -sp="$DEF_STYLE_SERVICE_PROC" -sc="$DEF_STYLE_SERVICE_COMP"
     else
       Message "$(gettext "Stopping the service %s …")" -a="$sesto_name" -s="$DEF_STYLE_SERVICE_COMP" -n
@@ -212,18 +215,19 @@ ServiceIsRunning()
   local service="$1"
 
   if [ -z "$service" ]; then
-    # Ошибка: Необходимо указать имя службы!
     Error "$(gettext "Error: Service name is required!")"
   fi
 
-  return $(ps ax | grep -v grep | grep -Pq ".*/$service\s+.*") 
+  # return $(ps ax | grep -v grep | grep -Pq ".*/$service\s+.*")
+
+  return $(sudo service --status-all | grep -Eq "\[\s+\+\s+\]\s+$service")
 }
 
 #----------------------------------------------------------------------
 # Self-script
 #----------------------------------------------------------------------
 if [[ "${0##*/}" == "service" ]]; then
-  ParseArgs "$@"
+  ParseArgs "$@" --nodefault
 
   if [[ -n "${HTAN_PARSE_ARGS_RESULT[start]}" ]]; then
     ServiceStart "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
@@ -231,12 +235,14 @@ if [[ "${0##*/}" == "service" ]]; then
     ServiceStop "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
   elif [[ -n "${HTAN_PARSE_ARGS_RESULT[restart]}" ]]; then
     ServiceRestart "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[reload]}" ]]; then
+    ServiceReload "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
   elif [[ -n "${HTAN_PARSE_ARGS_RESULT[is]}" ]]; then
-    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT[is]}"
+    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
   elif [[ -n "${HTAN_PARSE_ARGS_RESULT[is-run]}" ]]; then
-    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT[is-run]}"
+    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
   elif [[ -n "${HTAN_PARSE_ARGS_RESULT[is-running]}" ]]; then
-    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT[is-running]}"
+    ServiceIsRunning "${HTAN_PARSE_ARGS_RESULT_NK[@]}"
   fi
 
   exit $?

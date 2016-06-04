@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,13 +20,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.1
+#   1.0.2
 #
 # CREATED:
 #   21.11.2015
 #
 # REVISION:
-#   19.04.2016
+#   26.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -75,15 +75,16 @@ InstallFail2Ban()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "Fail2ban" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "Fail2ban" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Fail2ban - программа для защиты сервера от различного вида атак.
-  Message "$(gettext "Fail2ban is an intrusion prevention software framework which protects computer servers from brute-force attacks.")"
-  Line
+    Message "$(gettext "Fail2ban is an intrusion prevention software framework which protects computer servers from brute-force attacks.")"
+    Line
+  fi
 
-  if ! PackageInstall "fail2ban" -confirm=true $tested; then
+  if ! PackageInstall "fail2ban" -confirm="$(NeedUserConfirmationToInstall true)" $tested; then
     Message "$(gettext "%s has not been installed.")" "Fail2ban"
     return
   fi
@@ -111,21 +112,27 @@ InstallFail2Ban()
   INI_SetValue "$config" -section="ssh" -key="logpath" -value="/var/log/auth.log"
   INI_SetValue "$config" -section="ssh" -key="maxretry" -value="10"
 
+  Fail2BanCheckFile "/var/log/auth.log"
+
   # vsftpd
-  if PackageExists vsftpd; then
+  if PackageInstalled vsftpd; then
     INI_SetValue "$config" -section="vsftpd" -key="enabled" -value="true"
     INI_SetValue "$config" -section="vsftpd" -key="port" -value="ftp,ftp-data,ftps,ftps-data"
     INI_SetValue "$config" -section="vsftpd" -key="filter" -value="vsftpd"
     INI_SetValue "$config" -section="vsftpd" -key="logpath" -value="/var/log/vsftpd.log"
     INI_SetValue "$config" -section="vsftpd" -key="maxretry" -value="10"
+
+    Fail2BanCheckFile "/var/log/vsftpd.log"
   fi
 
   # postfix
-  if PackageExists postfix; then
+  if PackageInstalled postfix; then
     INI_SetValue "$config" -section="postfix" -key="enabled" -value="true"
     INI_SetValue "$config" -section="postfix" -key="port" -value="smtp,ssmtp,submission"
     INI_SetValue "$config" -section="postfix" -key="filter" -value="postfix"
     INI_SetValue "$config" -section="postfix" -key="logpath" -value="/var/log/mail.log"
+
+    Fail2BanCheckFile "/var/log/mail.log"
   fi
 
   # nginx-http-auth
@@ -135,6 +142,8 @@ InstallFail2Ban()
   INI_SetValue "$config" -section="nginx-http-auth" -key="logpath" -value="/var/log/nginx/error.log"
   INI_SetValue "$config" -section="nginx-http-auth" -key="maxretry" -value="10"
 
+  Fail2BanCheckFile "/var/log/nginx/error.log"
+
   # nginx-badbots
   # INI_SetValue "$config" -section="nginx-badbots" -key="enabled" -value="true"
   # INI_SetValue "$config" -section="nginx-badbots" -key="port" -value="http,https"
@@ -143,17 +152,43 @@ InstallFail2Ban()
   # INI_SetValue "$config" -section="nginx-http-auth" -key="maxretry" -value="5"
 
   # mysql
-  if PackageExists mysql-server; then
+  if PackageInstalled mysql-server; then
     INI_SetValue "$config" -section="mysqld-auth" -key="enabled" -value="true"
     INI_SetValue "$config" -section="mysqld-auth" -key="port" -value="3306"
     INI_SetValue "$config" -section="mysqld-auth" -key="filter" -value="mysqld-auth"
     INI_SetValue "$config" -section="mysqld-auth" -key="logpath" -value="/var/log/mysqld.log"
+
+    Fail2BanCheckFile "/var/log/mysqld.log"
   fi
 
   ServiceRestart fail2ban
 
+  # testing
+  if [[ -f "/var/log/fail2ban.log" ]]; then
+    Line
+    Message "$(gettext "Testing for errors …")" -n -s="$DEF_STYLE_ACTION_COMP"
+    if sudo grep -q 'ERROR' /var/log/fail2ban.log >> $HTAN_LOG 2>&1; then
+      Fail
+      Line
+      sudo grep --color 'ERROR' /var/log/fail2ban.log
+    else
+      OK
+    fi
+  fi
+
   Line
   Message "$(gettext "Done.")"
+}
+
+Fail2BanCheckFile()
+{
+  local f2bcf_path="$1"
+  if [[ ! -f "$f2bcf_path" ]]; then
+    sudo touch "$f2bcf_path" >> $HTAN_LOG 2>&1
+    Message "$(gettext "WARNING: File %s not found. This can cause problems in the fail2ban. HTAN create an empty file, but you need to make sure that everything works.")" "$f2bcf_path" -s="$DEF_STYLE_WAITING"
+    Line
+    sleep 3
+  fi
 }
 
 InstallFail2Ban

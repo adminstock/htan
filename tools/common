@@ -41,13 +41,13 @@
 #          ]
 #
 # NAME:
-#   HTAN Common Tool
+#   HTAN Common
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8
+#   Debian 7/8, Ubuntu 16+
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -57,13 +57,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.3
+#   1.0.5
 #
 # CREATED:
 #   21.09.2015
 #
 # REVISION:
-#   20.04.2016
+#   04.06.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -80,6 +80,9 @@ export TEXTDOMAIN
 
 readonly HOSTING_TOOLS_COMMON_FILE_INCLUDED=true
 
+# The list of launched arguments
+readonly HTAN_STARTED_ARGS="$*"
+
 # The associative array for results of the parse arguments function
 declare -A HTAN_PARSE_ARGS_RESULT
 declare -a HTAN_PARSE_ARGS_RESULT_NK
@@ -94,6 +97,13 @@ declare -a HTAN_INCLUDED_TOOLS=("common")
 
 # Disable styles
 declare HTAN_UNSTYLED=false
+
+# Indicates that the installer is confirmed
+declare HTAN_INSTALL_CONFIRMED=false
+
+# Suppresses output headers of installers
+declare HTAN_NOHEADERS=false
+declare HTAN_NOINCMSG=false
 
 # Paths
 declare HTAN_LOG=""
@@ -135,6 +145,13 @@ declare HTAN_DEBUG=false
 declare HTAN_TESTED=false
 # Small crutch for self-script arguments :)
 declare HTAN_ONE_SKIP_PARSE_ARGS=false
+
+# Last saved config file for log  (/tools/config)
+declare HTAN_LAST_SAVED_CONF=""
+
+# IFS for SetIFS and ResetIFS
+declare HTAN_SAVE_IFS
+declare HTAN_IFS_RESTORED=true
 
 # HTAN version number
 readonly HTAN_VERSION="$([[ -f $HTAN_PATH_ROOT/.version ]] && cat $HTAN_PATH_ROOT/.version || echo 'unknown')"
@@ -178,7 +195,7 @@ readonly STYLE_DEF='\033[0;39m'
 readonly STYLE_BGDEF='\033[49m'
 # // --
 
-# default styles
+# Default styles
 readonly DEF_STYLE_HEADER="$STYLE_BOLD$STYLE_WHITE"
 readonly DEF_STYLE_TEXT="$STYLE_WHITE"
 readonly DEF_STYLE_ERROR="$STYLE_LRED"
@@ -215,9 +232,6 @@ readonly DEF_STYLE_INCLUDE="$STYLE_CYAN"
 readonly DEF_STYLE_SUCCESS="$STYLE_GREEN"
 readonly DEF_STYLE_FAIL="$STYLE_RED"
 readonly DEF_STYLE_CANCELLED="$STYLE_GRAY"
-
-readonly SYS_OS_VERSION="$(cat /etc/*release | grep "^VERSION_ID=*" | sed -r 's/VERSION_ID="([0-9]+)"/\1/')"
-readonly SYS_OS_CODE_NAME="$(cat /etc/*release | grep "^PRETTY_NAME=*" | sed -r 's/PRETTY_NAME="(.+)\((.+)\)"/\2/')"
 
 #======================================================================
 # Displays a line across the entire screen.
@@ -271,6 +285,53 @@ Unstyle()
   if $HTAN_UNSTYLED; then return 1; fi
   if [[ -z "$1" ]]; then return 1; fi
   Style "$STYLE_NORMAL"
+}
+
+#======================================================================
+# Saves current IFS to HTAN_SAVE_IFS and set new IFS.
+#
+# GLOBALS:
+#   $HTAN_SAVE_IFS
+#     The variable to store the previous (current) value of IFS.
+#
+# ARGUMENTS:
+#   $1: New IFS value.
+#
+# RETURNS:
+#   None
+#======================================================================
+SetIFS()
+{
+  if ! $HTAN_IFS_RESTORED; then
+    ResetIFS
+  fi
+
+  HTAN_SAVE_IFS="$IFS"
+  IFS="$1"
+  HTAN_IFS_RESTORED=false
+}
+
+#======================================================================
+# Restore IFS from HTAN_SAVE_IFS.
+#
+# GLOBALS:
+#   $HTAN_SAVE_IFS
+#     The variable with previous value of IFS.
+#
+# ARGUMENTS:
+#   None
+#
+# RETURNS:
+#   None
+#======================================================================
+ResetIFS()
+{
+  if $HTAN_IFS_RESTORED; then
+    return
+  fi
+
+  IFS="$HTAN_SAVE_IFS"
+  HTAN_IFS_RESTORED=true
 }
 
 #======================================================================
@@ -343,10 +404,15 @@ ClearRow()
 Debug()
 {
   if [[ "$HTAN_DEBUG" != true ]]; then return; fi
+
   Style "$DEF_STYLE_DEBUG"
+
   printf "$1" "${@:2}"
   printf "\n"
+
   Unstyle "$DEF_STYLE_DEBUG"
+
+  Log "$(printf "$1" "${@:2}")"
 }
 
 #======================================================================
@@ -750,8 +816,17 @@ Confirm()
         return 0;;
       "N" | "NO" | "YN" | "0" | "FALSE" | "Н" | "НЕТ" | "Нет" | "нет" | "н")
         return 1;;
+      "HTAN" | "htan")
+        Line
+        Message "Hosting tools by Aleksey Nemiro (HTAN)"
+        Message "Created 2015-09-14"
+        Message "Relesed 2016-04-27"
+        Message "https://github.com/adminstock/htan"
+        Message "http://www.adminstock.net/"
+        Line
+        Message "$(gettext "Enter Y or N!")" -s="$DEF_STYLE_ERROR"
+        ;;
       *)
-        # Ожидается ввод символов Y или N!
         Message "$(gettext "Enter Y or N!")" -s="$DEF_STYLE_ERROR"
     esac
 
@@ -890,6 +965,39 @@ PressAnyKey()
   read -sn 1 -p "$(gettext "Press any key to continue...")"
   echo
   Unstyle "$STYLE_BLACK$STYLE_BGGRAY"
+}
+
+#======================================================================
+# Displays message: "The operation cannot be completed.".
+#
+# USAGE:
+#   OperationCannotBeCompleted [before line char [after line char]]
+#
+# ARGUMENTS:
+#   $1 - Symbol to draw the line before displaying the message.
+#        Default: empty, no draw line.
+#
+#   $2 - Symbol to draw the line after displaying the message.
+#        Default: empty, no draw line.
+#
+# RETURNS:
+#   1 - always
+#======================================================================
+OperationCannotBeCompleted()
+{
+  local before="$1" after="$2"
+
+  if [[ -n "$before" ]]; then
+    Line "$before"
+  fi
+
+  Message "$(gettext "The operation cannot be completed.")"
+
+  if [[ -n "$after" ]]; then
+    Line "$after"
+  fi
+
+  return 1
 }
 
 #======================================================================
@@ -1061,16 +1169,20 @@ Include()
     Error "File path is requred!"
   fi
 
-  local file_name=$(basename "$1")
-  # "Подключение $1 …"
-  Message "$(gettext "Including %s …")" "$file_name" -s="$DEF_STYLE_INCLUDE" -n
-  {
-    source "$1" && OK
-  } || {
-    Fail
-    # Не удалось подключить $1
-    Error "$(gettext "Failed to include %s.")" "$file_name"
-  }
+  # don't show message for --noincmsg and "run"
+  if $HTAN_NOINCMSG || [[ -n "$HTAN_TASK_RUN" ]]; then
+    source "$1"
+  else
+    local file_name=$(basename "$1")
+    Message "$(gettext "Including %s …")" "$file_name" -s="$DEF_STYLE_INCLUDE" -n
+    {
+      source "$1" && OK
+    } || {
+      Fail
+      # Не удалось подключить $1
+      Error "$(gettext "Failed to include %s.")" "$file_name"
+    }
+  fi
 }
 
 #======================================================================
@@ -1146,6 +1258,17 @@ Execute()
   if [[ -n "$ex_message" ]]; then
     ex_arguments=("$ex_message" "${ex_arguments[@]}" -n)
     Message "${ex_arguments[@]}" -s="$style_on"
+
+    if [[ "$HTAN_DEBUG" == true ]]; then
+      Log "-----------------------------------------------------------------------"
+      Log "$(Message "${ex_arguments[@]}")"
+    fi
+  fi
+
+  if [[ "$HTAN_DEBUG" == true ]]; then
+    Log "-----------------------------------------------------------------------"
+    Log "$ex_cmd"
+    Log "-----------------------------------------------------------------------"
   fi
 
   local progress="-\\|/"
@@ -1233,12 +1356,19 @@ Execute()
     else
       Fail
     fi
+
+    sleep 0.25
   fi
 
   # stty echo
   Unblock
 
   Debug "Execution result: %s" "$ex_result"
+
+  if [[ "$HTAN_DEBUG" == true ]]; then
+    Log "-----------------------------------------------------------------------"
+    Log "Result: $ex_result"
+  fi
 
   return $ex_result
 }
@@ -1262,26 +1392,24 @@ GetServerIP()
     if ip -4 address show 'eth0' > /dev/null 2>&1; then
       # parse ip
       HTAN_SERVER_IP="$(ip -4 address show 'eth0' | grep 'inet' | sed 's/.*inet \([0-9\.]\+\).*/\1/')"
+    elif [[ -n "$(ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1')" ]]; then
+      # parse ip
+      HTAN_SERVER_IP="$(ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1')"
     else
       # get ip from externa server
       HTAN_SERVER_IP="$(wget http://ipecho.net/plain -O - -q; echo)"
     fi
     # confirmation
     while true; do
-      # Введите IP данного сервера:
       Message "$(gettext "Enter the IP of the server:")" -s="$DEF_STYLE_QUESTION"
 
       Read -e -i "$HTAN_SERVER_IP" HTAN_SERVER_IP
 
       if [[ -n "$HTAN_SERVER_IP" ]]; then
-        # Message "Адрес $HTAN_SERVER_IP будет использован при конфигурации некоторых компонентов."
-        # Message "Неправильно указанный адрес может привести к проблемам в работе этих компонентов."
-        # Адрес %s правильный?
         if Confirm "$(gettext "IP %s is correct?")" -a="$HTAN_SERVER_IP" -yes; then
           break
         fi
       else
-        # Необходимо указать IP-адрес этого сервера!
         Message "$(gettext "IP-address is required!")" -s="$DEF_STYLE_ERROR"
       fi
     done
@@ -1307,6 +1435,15 @@ GetServerIP()
 #     The collection arguments without keys (names).
 #
 # ARGUMENTS:
+#   -showall
+#     Print to display all arguments (for debugging).
+#
+#   -keepempty
+#     Keep empty values (do not set 'true').
+#
+#   -nodefault
+#     Do not use $HTAN_PARSE_ARGS_RESULT_DEF.
+#
 #   Any
 #
 # RETURNS:
@@ -1332,7 +1469,7 @@ ParseArgs()
     return
   fi
 
-  local pa_key pa_value pa_debug=false pa_keep_empty=false
+  local pa_key pa_value pa_debug=false pa_keep_empty=false pa_nodefault=false
 
   # read arguments
   local pa_i pa_count=$#
@@ -1363,6 +1500,10 @@ ParseArgs()
       if [[ "$pa_key" == "keepempty" && "$pa_value" == "true" ]]; then
         pa_keep_empty=true
       fi
+
+      if [[ "$pa_key" == "nodefault" && "$pa_value" == "true" ]]; then
+        pa_nodefault=true
+      fi
     else
       if [[ -z "$HTAN_PARSE_ARGS_RESULT_DEF" ]]; then
         # default parameter
@@ -1374,6 +1515,13 @@ ParseArgs()
     fi
     shift
   done
+
+  if $pa_nodefault; then
+    if [[ -z "$HTAN_PARSE_ARGS_RESULT_DEF" ]]; then
+      HTAN_PARSE_ARGS_RESULT_NK+=("$HTAN_PARSE_ARGS_RESULT_DEF")
+      HTAN_PARSE_ARGS_RESULT_DEF=""
+    fi
+  fi
 
   if $pa_debug; then
     # Line "~" "$DEF_STYLE_DEBUG"
@@ -1456,6 +1604,7 @@ ShowLastLogRecords()
 #======================================================================
 Log()
 {
+  # printf "%s :: %s\n" "$(date "+%Y-%m-%d %H:%M:%S")" "$1" >> "$HTAN_LOG"
   printf "%s\n" "$1" >> "$HTAN_LOG"
 }
 
@@ -1473,6 +1622,7 @@ Log()
 #======================================================================
 ServerInfo()
 {
+  if [[ -z "$HTAN_SERVER_INFO" ]]; then return; fi
   printf "%b" "$1" >> "$HTAN_SERVER_INFO"
 }
 
@@ -1594,6 +1744,99 @@ IsValidPort()
   fi
 }
 
+#======================================================================
+# Returns true, if the script is executed with the option --confirmed, 
+# otherwise returns the specified value.
+#
+# USAGE:
+#   NeedUserConfirmationToInstall "false"
+#
+# ARGUMENTS:
+#   $1: Default value.
+#
+# RETURNS:
+#   0 (true) if the installation is confirmed; otherwise, 1 (false).
+#======================================================================
+NeedUserConfirmationToInstall()
+{
+  if [[ "$HTAN_INSTALL_CONFIRMED" == true ]]; then
+    printf "false"
+    return 1
+  else
+    printf "$1"
+    if [[ "$1" == true ]]; then
+      return 0
+    else
+      return 1
+    fi
+  fi
+}
+
+RunInstaller()
+{
+  ParseArgs "$@"
+
+  local ri_name="${HTAN_PARSE_ARGS_RESULT[name]:-${HTAN_PARSE_ARGS_RESULT[n]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  local ri_confirmed="${HTAN_PARSE_ARGS_RESULT[confirmed]:-${HTAN_PARSE_ARGS_RESULT[yes]:-${HTAN_PARSE_ARGS_RESULT[y]:-false}}}"
+  local ri_noheaders="${HTAN_PARSE_ARGS_RESULT[noheaders]:-false}"
+  local ri_noincmsg="${HTAN_PARSE_ARGS_RESULT[noincmsg]:-${HTAN_PARSE_ARGS_RESULT[noincmsgs]:-false}}"
+
+  [[ "$ri_confirmed" == true ]] && ri_confirmed="--confirmed" || ri_confirmed=""
+  [[ "$ri_noheaders" == true ]] && ri_noheaders="--noheaders" || ri_noheaders=""
+  [[ "$ri_noincmsg" == true ]] && ri_noincmsg="--noincmsg" || ri_noincmsg=""
+
+  if [[ ! -f "$HTAN_PATH_INSTALLERS/$ri_name" ]]; then
+    Message "$(gettext "%s not found.")" "$ri_name"
+    Message "$(gettext "Recommended to install %s.")" "$ri_name"
+    Message "$(gettext "Check for updates %s.")" "HTAN"
+  else
+    sudo chmod u=rx,g=rx "$HTAN_PATH_INSTALLERS/$ri_name"
+    sudo "$HTAN_PATH_INSTALLERS/$ri_name" "$HTAN_STARTED_ARGS" $ri_confirmed $ri_noheaders $ri_noincmsg
+  fi
+}
+
+GetSystemName()
+{
+  local gsn_name="$(ToLowerCase "$(uname -a)")"
+
+  case "$gsn_name" in 
+    *debian*) 
+      echo "Debian";; 
+    *ubuntu*) 
+      echo "Ubuntu";;
+    *darwin*)
+      echo "OSX";;
+    *bsd*)
+      echo "BSD";;
+    *solaris*)
+      echo "Solaris";;
+    *cygwin*)
+      echo "Cygwin";;
+    *)
+      echo "Unknown";;
+  esac
+}
+
+GetSystemCodeName()
+{
+  if [[ -z "$SYS_OS_NAME" ]]; then
+    Error "Unable to determine system code name as the system name is not specified."
+  fi
+
+  if [[ "$SYS_OS_NAME" == "Debian" ]]; then
+    printf "%s" "$(cat /etc/*release | grep "^PRETTY_NAME=*" | sed -r 's/PRETTY_NAME="(.+)\((.+)\)"/\2/')"
+  elif [[ "$SYS_OS_NAME" == "Ubuntu" ]]; then
+    printf "%s" "$(cat /etc/*release | grep "^UBUNTU_CODENAME=*" | sed -r 's/UBUNTU_CODENAME=("|)(.+)("|)/\2/')"
+  else
+    printf "%s" "$(cat /etc/*release | grep "^PRETTY_NAME=*" | sed -r 's/PRETTY_NAME="(.+)\((.+)\)"/\2/')"
+  fi
+}
+
+GetSystemVersion()
+{
+  printf "%s" "$(cat /etc/*release | grep "^VERSION_ID=*" | sed -r 's/VERSION_ID="(.+)"/\1/')"
+}
+
 ExtractHTANScriptKey()
 {
   if [[ -z "$1" ]]; then
@@ -1678,15 +1921,20 @@ ExtractHTANScriptKeyMultiline()
 
 # check availability of the necessary directories
 if [[ ! -d "$HTAN_PATH_ROOT" || ! -d "$HTAN_PATH_DATA" || ! -d "$HTAN_PATH_TOOLS" || ! -d "$HTAN_PATH_INSTALLERS" ]]; then
-  # Структура каталогов HTAN повреждена!
   Error "$(gettext "The directory structure of HTAN is damaged!")"
 fi
 
 # check bash version
 if (( ${BASH_VERSION%%[^0-9]*} < 4 )); then
-  # Требуется версия BASH не меньше 4.0!
   Error "$(gettext "Required BASH v4.0 or later!")"
 fi
+
+# System name and version
+readonly SYS_OS_VERSION="$(GetSystemVersion)"
+readonly SYS_OS_VERSION_MAJOR="${SYS_OS_VERSION%.*}"
+# NOTE: Do not change the order
+readonly SYS_OS_NAME="$(GetSystemName)"
+readonly SYS_OS_CODE_NAME="$(GetSystemCodeName)"
 
 #----------------------------------------------------------------------
 # Parse arguments
@@ -1696,17 +1944,37 @@ ParseArgs "$@"
 # main user name
 declare HTAN_USER="${HTAN_PARSE_ARGS_RESULT[u]:-${HTAN_PARSE_ARGS_RESULT[user]:-$USER}}"
 # is restarted as root
-declare HTAN_ROOT_LOGIN="${HTAN_PARSE_ARGS_RESULT[root]:-false}"
+declare HTAN_RESTARTED="${HTAN_PARSE_ARGS_RESULT[root]:-false}"
+[[ "$HTAN_RESTARTED" != true ]] && HTAN_RESTARTED=false
 # debug mode
 HTAN_DEBUG="${HTAN_PARSE_ARGS_RESULT[debug]:-false}"
+[[ "$HTAN_DEBUG" != true ]] && HTAN_DEBUG=false
 # only tested versions
 HTAN_TESTED="${HTAN_PARSE_ARGS_RESULT[tested]:-false}"
+[[ "$HTAN_TESTED" != true ]] && HTAN_TESTED=false
 # disable styles
 HTAN_UNSTYLED="${HTAN_PARSE_ARGS_RESULT[nocolor]:-false}"
+[[ "$HTAN_UNSTYLED" != true ]] && HTAN_UNSTYLED=false
 # log file path
 HTAN_LOG="${HTAN_PARSE_ARGS_RESULT[log]:-/var/log/htan/installer.log}" # $HTAN_PATH_ROOT/htan.log
 # file for server info
-HTAN_SERVER_INFO="${HTAN_PARSE_ARGS_RESULT[output-server-info]:-$HTAN_PATH_ROOT/server.info}"
+HTAN_SERVER_INFO="${HTAN_PARSE_ARGS_RESULT[output-server-info]:-/root/server.info}"
+# confirmed install
+HTAN_INSTALL_CONFIRMED="${HTAN_PARSE_ARGS_RESULT[confirmed]:-${HTAN_PARSE_ARGS_RESULT[y]:-${HTAN_PARSE_ARGS_RESULT[yes]:-false}}}"
+[[ "$HTAN_INSTALL_CONFIRMED" != true ]] && HTAN_INSTALL_CONFIRMED=false
+# disable headers
+HTAN_NOHEADERS="${HTAN_PARSE_ARGS_RESULT[noheaders]:-false}"
+[[ "$HTAN_NOHEADERS" != true ]] && HTAN_NOHEADERS=false
+HTAN_NOINCMSG="${HTAN_PARSE_ARGS_RESULT[noincmsg]:-${HTAN_PARSE_ARGS_RESULT[noincmsgs]:-false}}"
+[[ "$HTAN_NOINCMSG" != true ]] && HTAN_NOINCMSG=false
+
+# check user
+if [[ "$USER" != "root" ]]; then
+  Message "$(gettext "To run this script requires root privileges.")"
+  Line
+  su -l root -c "$0 $HTAN_STARTED_ARGS -root -u=$USER"
+  exit 0
+fi
 
 # set language
 declare HTAN_LANG="${HTAN_PARSE_ARGS_RESULT[lang]/-/_}"
@@ -1727,12 +1995,12 @@ fi
 system_lang="${LC_ALL:-${LC_MESSAGES:-$LANG}}"
 if [[ -z "$HTAN_LANG" ]]; then
   if [[ -d "$TEXTDOMAINDIR/$current_lang" ]]; then
-    LANGUAGE="$current_lang"
+    LANGUAGE="$current_lang.utf8"
   elif [[ -d "$TEXTDOMAINDIR/${current_lang:0:2}" ]]; then
-    LANGUAGE="${current_lang:0:2}"
+    LANGUAGE="${current_lang:0:2}.utf8"
   fi
 else
-  LANGUAGE="$HTAN_LANG"
+  LANGUAGE="$HTAN_LANG.utf8"
 fi
 
 export LANGUAGE
@@ -1741,6 +2009,29 @@ export LANGUAGE
 # check log path
 if [[ ! -d "$(dirname "$HTAN_LOG")" ]]; then
   mkdir -p "$(dirname "$HTAN_LOG")"
+fi
+
+# server info only for "run"
+if [[ "${0##*/}" != "run" ]]; then
+  HTAN_SERVER_INFO=""
+fi
+
+# check server info file name
+if [[ -n "$HTAN_SERVER_INFO" && -f "$HTAN_SERVER_INFO" ]]; then
+  si_folder=$(dirname "${f}")
+  si_filename="${HTAN_SERVER_INFO##*/}"
+  si_name="${si_filename%.*}"
+  si_extension="${si_filename##*.}"
+  [[ -n "$si_extension" ]] && si_extension=".$si_extension"
+  si_index=1
+  # search of a unique file name
+  while [[ -f "$si_folder/$si_name.$si_index$si_extension" ]]; do
+    ((si_index++))
+  done
+  # move old file to new path
+  mv --force "$HTAN_SERVER_INFO" "$si_folder/$si_name.$si_index$si_extension"
+  # delete variables
+  unset si_folder si_filename si_name si_extension si_index
 fi
 
 #----------------------------------------------------------------------
@@ -1851,14 +2142,16 @@ if [[ "$HTAN_DEBUG" = true ]]; then
  -- TEXTDOMAINDIR=%s
  -- -------------------------------------------------------------------
  -- file=%s
- -- root=%s
+ -- restarted=%s
  -- user=%s
+ -- confirmed=%s
  -- tested=%s
  -- log=%s
  -- arguments=%s" \
  "$system_lang" "$HTAN_LANG" \
  "$LANGUAGE" "$TEXTDOMAIN" "$TEXTDOMAINDIR" \
  "${0##*/}" \
- "$HTAN_ROOT_LOGIN" "$HTAN_USER" \
+ "$HTAN_RESTARTED" "$HTAN_USER" \
+ "$HTAN_INSTALL_CONFIRMED" \
  "$HTAN_TESTED" "$HTAN_LOG" "${arguments[@]}"
 fi

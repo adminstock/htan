@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,7 +26,7 @@
 #   25.11.2015
 #
 # REVISION:
-#   17.04.2016
+#   25.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -75,21 +75,19 @@ InstallNmap()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing %s.")" "nmap" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing %s.")" "nmap" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Nmap - это утилита для исследования сети и сканер портов.
-  Message "$(gettext "Nmap is security and port scanner, network exploration tool.")"
-  Line
-
-  if PackageInstall "nmap" -confirm=true $tested; then
+    Message "$(gettext "Nmap is security and port scanner, network exploration tool.")"
     Line
-    # Message "Можно выполнить сканирование портов данного сервера."
-    # Если вы впервые разворачиваете сервер, то рекомендуется провести проверку после перезагрузки, когда будут запущены все сетевые службы и межсетевой экран.
+  fi
+
+  if PackageInstall "nmap" -confirm="$(NeedUserConfirmationToInstall true)" $tested; then
+    Line
     Message "$(gettext "It is recommended to scan the security of the server. But if you are only now configure the server, it is recommended to scan, after the server is restarted.")"
     Line
-    # Хотите провести сканирование портов сейчас?
     if Confirm "$(gettext "Do you want to scan ports now?")" -no; then
       if [[ -z "$HTAN_SERVER_IP" ]]; then
         GetServerIP
@@ -100,7 +98,6 @@ InstallNmap()
       PressAnyKey
     else
       Line
-      # Для выполнения сканирования вручную необходимо выполнить команду:
       Message "$(gettext "To scan manually, perform the following command:")"
       Message "sudo nmap $HTAN_SERVER_IP"
     fi

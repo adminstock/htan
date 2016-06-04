@@ -4,13 +4,13 @@
 # Performs installation and configuration of SmallServerAdmin.
 #
 # USAGE:
-#   ssa [--debug] [--version] [--help] [--nocolor] [--tested]
+#   ssa [--debug] [--version] [--help] [--nocolor]
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8 or Ubuntu 14+, sudo, PHP 5/7, libssh2, Nginx
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,13 +20,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.3
+#   1.0.5
 #
 # CREATED:
 #   11.04.2016
 #
 # REVISION:
-#   28.04.2016
+#   04.06.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2016. All rights reserved.
@@ -64,60 +64,266 @@ if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
 fi
 
 # Including tools
-IncludeTool package service config web
+IncludeTool package service config web php
 
 InstallSSA()
 {
   local base_path="/usr/share/ssa-webpanel" # without slash at end
   local www_path="$base_path/www"
   local htpasswd_path="$base_path/.htpasswd"
+  local command=""
+  local has_ssa=false
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "SmallServerAdmin" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "SmallServerAdmin" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Для управления сервером можно установить бесплатную веб-панель SmallServerAdmin.
-  Message "$(gettext "To manage the server, you can install the free web panel SmallServerAdmin.")"
-  Line
+    Message "$(gettext "To manage the server, you can install the free web panel SmallServerAdmin.")"
+    Line
+  fi
 
   if [[ -f "$www_path/config.php" ]]; then
-    # Вероятно, панель SmallServerAdmin уже установлена.
+    has_ssa=true
     Message "$(gettext "Probably, SmallServerAdmin already installed.")"
     if ! Confirm "$(gettext "Would you like to configure?")" -yes; then
+      Line
       Message "$(gettext "Operation canceled by the user.")"
       return
     fi
+
+    Line
   else
-    # Установить панель управления сервером?
-    if ! Confirm "$(gettext "Do you want to install the server control panel?")" -yes; then
-      Message "$(gettext "Operation canceled by the user.")"
-      return
+    if ! $HTAN_INSTALL_CONFIRMED; then
+      if ! Confirm "$(gettext "Do you want to install the server control panel?")" -yes; then
+        Line
+        Message "$(gettext "Operation canceled by the user.")"
+        return
+      else
+        Line
+      fi
     fi
   fi
-
-  Line
 
   # installation of dependents
-  PackageInstall "openssh-server" -confirm=false
+  PackageInstall "openssh-server" -confirm=false || return 1
   Line
 
-  PackageInstall "git" -confirm=false
+  PackageInstall "git" -confirm=false || return 1
   Line
 
-  PackageInstall "subversion" -confirm=false
+  PackageInstall "subversion" -confirm=false || return 1
   Line
 
-  if ! PackageExists php7 && ! PackageExists php7.0; then
-    PackageInstall "php5" -confirm=false
+  if ! PackageInstalled apache2; then
+    PackageInstall "openssl" -confirm=false
     Line
   fi
 
-  if ! PackageExists php7-fpm && ! PackageExists php7.0-fpm; then
-    PackageInstall "php5-fpm" -confirm=false
+  # search php7
+  local hasPhp7=false
+
+  # search php7
+  if PackageInstalled php7 || PackageInstalled php7.0 || PackageInstalled php7-fpm || PackageInstalled php7.0-fpm || PhpExists 7; then
+    hasPhp7=true
+  fi
+
+  # check php version for php-fpm package
+  if ! $hasPhp7 && PackageInstalled php-fpm && (( $(PackageVersion php-fpm true) == 7 )); then
+    hasPhp7=true
+  fi
+
+  local phpIsInstalled=false
+
+  # install php
+  if ! $hasPhp7; then
+    local phpPackageName="php5-fpm" # default for debian
+
+    if [[ "$SYS_OS_NAME" == "Ubuntu" ]]; then
+      phpPackageName="php-fpm"
+    else
+      # check can be released php7 for debian
+      if PackageExists php7.0-fpm; then
+        phpPackageName="php7.0-fpm"
+      elif PackageExists php7-fpm; then
+        phpPackageName="php7-fpm"
+      fi
+    fi
+
+    if ! PackageInstalled "$phpPackageName"; then
+      if Confirm "$(gettext "For operation %s on the server must be installed %s. Do you want to install %s?")" -a="SmallServerAdmin" -a="PHP" -a="$phpPackageName" -yes; then
+        Line
+        PackageInstall "$phpPackageName" -confirm=false
+        Line
+
+        if (( $(PackageVersion $phpPackageName true) == 7 )); then
+          hasPhp7=true
+        fi
+ 
+        phpIsInstalled=true
+      fi
+    else
+      phpIsInstalled=true
+    fi
+  else
+    phpIsInstalled=true
+  fi
+
+  # libssh2 for php5 (debian)
+  if PackageInstalled php5 || PackageInstalled php5-fpm; then
+    PackageInstall "libssh2-php" -confirm=false || return 1
     Line
   fi
 
-  PackageInstall "libssh2-php" -confirm=false
+  # phpize for php7
+  if PackageInstalled php7 || PackageInstalled php7-fpm; then
+    PackageInstall "php7-dev" -confirm=false
+    Line
+  fi
+
+  if PackageInstalled php7.0 || PackageInstalled php7.0-fpm; then
+    PackageInstall "php7.0-dev" -confirm=false
+    Line
+  fi
+
+  # other
+  if PackageInstalled php || PackageInstalled php-fpm; then
+    PackageInstall "php-dev" -confirm=false
+    Line
+  fi
+
+  # libssh2 for php7 (debian and also ubuntu)
+  if $hasPhp7; then
+    if (($(GetPhpize --version=7 | wc -l) <= 0)); then
+      Message "$(gettext "%s not found.")" "phpize" -s="$DEF_STYLE_ERROR"
+    else
+      # dependencies
+      PackageInstall "php-pear" -confirm=false || return 1
+      Line
+
+      command="sudo pecl channel-update pecl.php.net >> $HTAN_LOG 2>&1"
+      Execute -c="$command" -m="$(gettext "Updating packages …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+      Line
+
+      PackageInstall "build-essential" -confirm=false
+      Line
+
+      PackageInstall "autoconf" -confirm=false
+      Line
+
+      # PackageInstall "bison" -confirm=false
+      # Line
+
+      # PackageInstall "pkg-config" -confirm=false
+      # Line
+
+      # PackageInstall "libssh2" -confirm=false
+      # Line
+
+      PackageInstall "libgcrypt20-dev" -confirm=false
+      Line
+
+      PackageInstall "libgpg-error-dev" -confirm=false
+      Line
+
+      PackageInstall "libssh2-1-dev" -confirm=false
+      Line
+
+      # PackageInstall "libssh2–1" -confirm=false
+      # Line
+
+      local ssh2PackageTitle="PECL SSH2 for PHP7"
+
+      # prepare to download
+      local buildPath="/usr/local/src/pecl-networking-ssh2-build"
+      if [[ -d "$buildPath" ]]; then
+        command="rm --recursive --force $buildPath >> $HTAN_LOG 2>&1"
+        Execute -c="$command" -m="$(gettext "Removing %s …")" -a="$buildPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+        Line
+      fi
+
+      command="mkdir -p $buildPath >> $HTAN_LOG 2>&1"
+      Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$buildPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+      Line
+
+      # download
+      command="wget --no-check-certificate -O $buildPath/php7.zip  https://github.com/Sean-Der/pecl-networking-ssh2/archive/php7.zip >> $HTAN_LOG 2>&1"
+      Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+      Line
+
+      # unzip
+      if ! PackageInstalled unzip; then
+        PackageInstall unzip -confirm=false
+        Line
+      fi
+
+      command="sudo unzip $buildPath/php7.zip -d $buildPath >> $HTAN_LOG 2>&1"
+      Execute -c="$command" -m="$(gettext "Extraction %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+      Line
+
+      # prepare building
+      command="sudo bash -c \"cd $buildPath/pecl-networking-ssh2-php7 && $(GetPhpize --version=7 | head -1) >> $HTAN_LOG 2>&1 && "
+      command+="./configure --with-php-config=$(GetPhpConfig --version=7 | head -1) >> $HTAN_LOG 2>&1\""
+      Execute -c="$command" -m="$(gettext "Preparing …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+      Line
+
+      # make and install
+      command="sudo bash -c \"cd $buildPath/pecl-networking-ssh2-php7; make >> $HTAN_LOG 2>&1 && make install >> $HTAN_LOG 2>&1\""
+      Execute -c="$command" -m="$(gettext "Installing %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+      Line
+
+      # add the extension into php.ini
+      # (extension=ssh2.so)
+
+      SetIFS $'\n'
+
+      local phpIniPath
+
+      for phpIniPath in $(GetPhpIniPath --version=7); do
+        if ! sudo grep -qP '^extension\s*=\s*ssh2.so' "$phpIniPath" >> $HTAN_LOG 2>&1; then
+          command="echo 'extension=ssh2.so' | sudo tee -a $phpIniPath >> $HTAN_LOG 2>&1"
+          Execute -c="$command" -m="$(gettext "Adding %s to %s …")" -a="ssh2.so" -a="$phpIniPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+          Line
+        fi
+      done
+
+      ResetIFS
+
+      local phpModsPath="$(GetPhpModsAvailablePath --version=7 | head -1)"
+
+      if [[ -n "$phpModsPath" && -d "$phpModsPath" ]]; then
+        if [[ ! -f "$phpModsPath/ssh2.ini" ]]; then
+          command="sudo printf 'extension=ssh2.so' > '$phpModsPath/ssh2.ini'"
+          Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpModsPath/ssh2.ini" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+          Line
+        fi
+
+        local phpBasePath="$(dirname $phpModsPath)"
+        local phpModsPathAny=("$phpBasePath/apache2/conf.d" "$phpBasePath/cli/conf.d" "$phpBasePath/fpm/conf.d")
+        local phpCurrentModsPath
+
+        for phpCurrentModsPath in ${phpModsPathAny[@]}; do
+          if [[ -d "$phpCurrentModsPath" && "$(sudo find $phpCurrentModsPath -name "*ssh2.ini" 2> /dev/null | wc -l)" == "0" ]]; then
+            command="sudo ln -s '$phpModsPath/ssh2.ini' '$phpCurrentModsPath/20-ssh2.ini'"
+            Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpCurrentModsPath/20-ssh2.ini" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+            Line
+          fi
+        done
+
+        unset phpBasePath phpModsPathAny phpCurrentModsPath
+      else
+        Message "$(gettext "%s not found.")" "$phpBasePath/etc/mods_available" -s="$DEF_STYLE_WARNING"
+        Message "$(gettext "Please add 'extension=ssh2.so' to php.ini or to 'conf.d'.")" -s="$DEF_STYLE_WARNING"
+        sleep 5
+        Line
+      fi
+
+      # remove temp files
+      command="sudo rm --recursive --force $buildPath >> $HTAN_LOG 2>&1"
+      Execute -c="$command" -m="$(gettext "Removing temporary files …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    fi
+  fi
+
   Line
 
   PackageInstall "sysstat" -confirm=false
@@ -127,26 +333,21 @@ InstallSSA()
   Line
 
   # htan-runner for ASP.NET
-  if PackageExists mono-devel; then
-    if [[ ! -f "$HTAN_PATH_INSTALLERS/htan-runner" ]]; then
-      Message "$(gettext "%s not found.")" "htan-runner"
-      Message "$(gettext "Recommended to install %s.")" "htan-runner"
-      Message "$(gettext "Check for updates %s.")" "HTAN Installer"
-      Line
-    else
-      sudo chmod u=rx,g=rx "$HTAN_PATH_INSTALLERS/htan-runner"
-      sudo "$HTAN_PATH_INSTALLERS/htan-runner" --confirm --lang="$HTAN_LANG"
-      Line
-    fi
+  if PackageInstalled mono-devel; then
+    RunInstaller htan-runner -noincmsg -confirmed -noheaders
+    Line
   fi
 
   # etckeeper
-  if ! PackageExists etckeeper; then
-    if [[ -f "$HTAN_PATH_INSTALLERS/etckeeper" ]]; then
-      sudo chmod u=rx,g=rx "$HTAN_PATH_INSTALLERS/etckeeper"
-      sudo "$HTAN_PATH_INSTALLERS/etckeeper" --confirm --lang="$HTAN_LANG"
-      Line
-    fi
+  if ! PackageInstalled etckeeper; then
+    RunInstaller etckeeper -noincmsg -confirmed -noheaders
+    Line
+  fi
+
+  # backup config
+  if $has_ssa; then
+    Execute -c="sudo mv --backup --suffix=.$(date +%s) $www_path/config.php $base_path/config.backup.php >> $HTAN_LOG 2>&1" -m="$(gettext "Backuping %s …")" -a="$www_path/config.php" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
   fi
 
   # remove old folder
@@ -155,382 +356,419 @@ InstallSSA()
     Line
   fi
 
-  # download SmallServerAdmin
-  local command="svn export https://github.com/adminstock/ssa.git/trunk/SmallServerAdmin $www_path >> $HTAN_LOG 2>&1"
-  Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="SmallServerAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
-  Line
+  # get and parse url of latest release
+  local latestReleaseUrl="$(wget --no-check-certificate --quiet -O - "https://github.com/adminstock/ssa/releases/latest" | grep -P '<a(.+)href=".*/ssa.v(.+).zip"' | sed -r 's/.+"(.*\/ssa.v(.+)\.zip)".+/\1/')"
 
-  # host
-  EnterHost "$(printf "$(gettext "Enter the domain for %s:")" "SmallServerAdmin")" -default="panel.$HOSTNAME"
-  Line
+  if [[ -z "$latestReleaseUrl" ]]; then
+    Message "$(gettext "Failed to find the URL.")" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
 
-  local ssa_host="$HTAN_ENTERED_HOST"
+  if [[ "${latestReleaseUrl:0:4}" != "http" ]]; then
+    if [[ "${latestReleaseUrl:0:1}" == "/" ]]; then
+      latestReleaseUrl="https://github.com$latestReleaseUrl"
+    else
+      latestReleaseUrl="https://github.com/$latestReleaseUrl"
+    fi
+  fi
 
-  AddHost "$ssa_host"
-  Line
-
-  # create sudo user for SmallServerAdmin
-  local ssa_ssh_has_user=false
-  local ssa_ssh_user="ssa"
-  local ssa_ssh_password="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 12)"
-
-  # # Панель будет работать с сервером по SSH.\nВсе команды будут выполняться через sudo.
-  # Message "$(gettext "The panel will work with the server via SSH.\nAll commands will be executed through sudo.")"
+  # export dev version of SmallServerAdmin
+  # command="svn export https://github.com/adminstock/ssa.git/trunk/SmallServerAdmin $www_path >> $HTAN_LOG 2>&1"
+  # Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="SmallServerAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
   # Line
 
-  # while true; do
-  #
-  #   Message "$(gettext "Enter a username to create:")" -s="$DEF_STYLE_ENTER"
-  #   Read -e -i "$ssa_ssh_user" ssa_ssh_user
-  #
-  #   if [[ -n "$ssa_ssh_user" ]]; then
-  #     if id -u "$ssa_ssh_user" >/dev/null 2>&1; then
-  #       Line
-  #       Message "$(gettext "User %s already exists.")" "$ssa_ssh_user"
-  #       Message "$(gettext "For safety reasons, it is recommended to create a new user for the panel.")"
-  #       ssa_ssh_user="ssa$(shuf -i 1-65535 -n 1)"
-  #       Line
-  #       # if ! Confirm "$(gettext "Do you still want to use the user %s?")" "$ssa_ssh_user" -no; then
-  #       continue
-  #       # fi
-  #     else
-  #       # create user
-  #       local c="sudo adduser $ssa_ssh_user --quiet --shell /bin/bash --no-create-home --disabled-password --gecos 'SmallServerAdmin,$(GetServerIP),,support@adminlikes.com' >> $HTAN_LOG 2>&1"
-  #
-  #       Line
-  #       Execute -c="$c" -m="$(gettext "Creating %s …")" -a="SmallServerAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-  #       Line
-  #
-  #       if [[ $? = 0 ]]; then
-  #         ssa_ssh_has_user=true
-  #         # set password
-  #         while true; do
-  #           if EnterPassword; then
-  #             Line
-  #
-  #             ssa_ssh_password="$HTAN_PASSWORD"
-  #             c="sudo bash -c 'echo -e \"$ssa_ssh_password\n$ssa_ssh_password\" | passwd \"$ssa_ssh_user\"' >> $HTAN_LOG 2>&1"
-  #             Execute "$c" -m="Setting the password for %s …" -a="$ssa_ssh_user" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-  #
-  #             if [[ $? = 0 ]]; then
-  #               Line
-  #               break
-  #             else
-  #               Line
-  #               if ! Confirm "$(gettext "Do you want to try again?")"; then
-  #                 ssa_ssh_has_user=false
-  #                 break
-  #               fi
-  #             fi
-  #           fi
-  #         done
-  #       fi
-  #     fi
-  #
-  #     # add user to sudo
-  #     if [[ "$ssa_ssh_has_user" == true ]]; then
-  #       if ! groups "$ssa_ssh_user" 2> /dev/null | grep -q "\bsudo\b"; then
-  #         c="sudo usermod -a -G sudo $ssa_ssh_user"
-  #         Execute "$c" -m="$(gettext "Adding %s to the %s …")" -a="$ssa_ssh_user" -a="sudo" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-  #       else
-  #         Message "$(gettext "The user %s is a member of %s.")" "$ssa_ssh_user" "sudo"
-  #       fi
-  #
-  #       break
-  #     fi
-  #   else
-  #     Message "$(gettext "Error: Username is required. Value cannot be empty.")" -s="$DEF_STYLE_ERROR"
-  #   fi
-  #
-  #   # todo: exit if many attempts
-  # done
+  local ssa_temp_file="/tmp/ssa.zip"
 
-  # generate ssa user
-  while true; do
+  if [[ -f "$ssa_temp_file" ]]; then
+    Execute -c="rm $ssa_temp_file >> $HTAN_LOG 2>&1"
+  fi
 
-    if id -u "$ssa_ssh_user" >/dev/null 2>&1; then
-      # generate new user name
-      ssa_ssh_user="ssa$(shuf -i 1-65535 -n 1)"
-      continue
-    fi
-
-    # create user
-    local c="sudo adduser $ssa_ssh_user --quiet --shell /bin/bash --no-create-home --disabled-password --gecos 'SmallServerAdmin,$(GetServerIP),,support@adminlikes.com' >> $HTAN_LOG 2>&1"
-
-    Execute -c="$c" -m="$(gettext "Creating %s …")" -a="$ssa_ssh_user" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-
-    if [[ $? = 0 ]]; then
-      # set password
-      Line
-      c="sudo bash -c 'echo -e \"$ssa_ssh_password\n$ssa_ssh_password\" | passwd \"$ssa_ssh_user\"' >> $HTAN_LOG 2>&1"
-      Execute "$c" -m="$(gettext "Setting the password for %s …")" -a="$ssa_ssh_user" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-      Line
-    else
-      # error
-      Line
-      if id -u "$ssa_ssh_user" >/dev/null 2>&1; then
-        # remove created user
-        c="sudo userdel $ssa_ssh_user --remove"
-        Execute "$c" -m="$(gettext "Removing %s …")" -a="$ssa_ssh_user" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-        Line
-      fi
-      continue
-    fi
-
-    # add user to sudo
-    if ! groups "$ssa_ssh_user" 2> /dev/null | grep -q "\bsudo\b"; then
-      c="sudo usermod -a -G sudo $ssa_ssh_user"
-      Execute "$c" -m="$(gettext "Adding %s to the %s …")" -a="$ssa_ssh_user" -a="sudo" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-    else
-      Message "$(gettext "The user %s is a member of %s.")" "$ssa_ssh_user" "sudo"
-    fi
-
-    break
-
-  done
-
+  # download release file
+  local command="wget -O $ssa_temp_file '$latestReleaseUrl' >> $HTAN_LOG 2>&1"
+  Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="SmallServerAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
   Line
 
-  # config SmallServerAdmin
-  local ssa_config_source="$HTAN_PATH_DATA/ssa.config.php"
-  local ssa_config_target="$www_path/ssa.config.php"
-  if [[ -f $ssa_config_source ]]; then
-    local c="sudo cp $ssa_config_source $ssa_config_target >> $HTAN_LOG 2>&1"
-    Execute -c="$c" -m="$(gettext "Creating configuration file for %s …")" -a="SmallServerAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-    # config
-    local ssa_modules="users" ssa_dbadmin_list=""
+  # check unzip
+  if ! PackageInstalled unzip; then
+    PackageInstall unzip -confirm=false
+    Line
+  fi
 
-    if PackageExists subversion; then
-      ssa_modules+=",svn"
+  if [[ ! -d "$base_path" ]]; then
+    Execute -c="mkdir -p $base_path >> $HTAN_LOG 2>&1" -m="$(gettext "Creating %s …")" -a="$base_path" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  # extract files
+  Execute -c="unzip -o $ssa_temp_file -d $base_path >> $HTAN_LOG 2>&1" -m="$(gettext "Extraction …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  Line
+
+  # compatibility with older versions
+  if [[ ! -d "$www_path" ]]; then
+    if [[ -d "$base_path/SmallServerAdmin" ]]; then
+      sudo mv --force "$base_path/SmallServerAdmin" "$www_path"
+    else
+      Message "$(gettext "The folder %s was not found.")" "$www_path"
+      Line
     fi
+  fi
 
-    if PackageExists phpmyadmin || PackageExists phppgadmin; then
-      ssa_modules+=",dbadmin"
-    fi
+  # remove temp file
+  Execute -c="rm $ssa_temp_file"
 
-    if PackageExists phpmyadmin; then
-      ssa_dbadmin_list+="['file_name' => 'mysql.php', 'title' => 'MySql']"
-    fi
-
-    if PackageExists phppgadmin; then
-      if [[ -n "$ssa_dbadmin_list" ]]; then
-        ssa_dbadmin_list+=", "
-      fi
-      ssa_dbadmin_list+="['file_name' => 'pgsql.php', 'title' => 'PostgreSql']"
-    fi
-
-    ssa_modules+=",sites,files,monitoring,services,ssh,settings"
-
-    local ssa_wsearchstring="nginx,apache"
-    local ssa_web_htan_enabled="FALSE"
-
-    if [[ -f "/usr/lib/htan-runner/HTAN.Runner.exe" ]]; then
-      ssa_wsearchstring+=",htan-runner"
-      ssa_web_htan_enabled="TRUE"
-    fi
-
-    if PackageExists php5-fpm; then
-      ssa_wsearchstring+=",php5-fpm"
-    fi
-
-    if PackageExists php7-fpm; then
-      ssa_wsearchstring+=",php7-fpm"
-    fi
-
-    ReplaceMarker $ssa_config_target "HTAN_Version" "$HTAN_VERSION"
-    ReplaceMarker $ssa_config_target "modules" "$ssa_modules"
-    ReplaceMarker $ssa_config_target "WServices_SearchString" "$ssa_wsearchstring"
-    ReplaceMarker $ssa_config_target "ApacheHost" "127.0.0.1"
-    ReplaceMarker $ssa_config_target "ApachePort" "8080"
-    ReplaceMarker $ssa_config_target "PhpFastCgiPort" "9001"
-    ReplaceMarker $ssa_config_target "AspNetFastCgiPort" "9100"
-
-    local ssh_port="$(GetValue /etc/ssh/sshd_config Port)"
-
-    if [[ -z "$ssh_port" ]]; then
-      ssh_port=22
-    fi
-
-    ReplaceMarker $ssa_config_target "ssh_host" "$(GetServerIP)"
-    ReplaceMarker $ssa_config_target "ssh_port" "$ssh_port"
-    ReplaceMarker $ssa_config_target "ssh_user" "$ssa_ssh_user"
-    ReplaceMarker $ssa_config_target "ssh_password" "$ssa_ssh_password"
-    ReplaceMarker $ssa_config_target "ssh_required_password" "TRUE"
-
-    ReplaceMarker $ssa_config_target "dbadmin_list" "$ssa_dbadmin_list"
-
-    ReplaceMarker $ssa_config_target "web_htan_enabled" "$ssa_web_htan_enabled"
-
+  if $has_ssa; then
+    # restore config
+    Execute -c="sudo mv $base_path/config.backup.php $www_path/config.php >> $HTAN_LOG 2>&1" -m="$(gettext "Restoring %s …")" -a="$www_path/config.php" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+    # TODO: re-config
   else
-    Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="SmallServerAdmin" -a="$ssa_config_source" -s="$DEF_STYLE_ERROR"
+    # host
+    EnterHost "$(printf "$(gettext "Enter the domain for %s:")" "SmallServerAdmin")" -default="panel.$HOSTNAME"
     Line
-  fi
 
-  # add user to ssh
-  local ssh_allow_users="$(GetValue /etc/ssh/sshd_config AllowUsers)"
-  if [[ "$ssh_allow_users" != *"$ssa_ssh_user"* ]]; then
-    if [[ "$ssh_allow_users" != "" ]]; then
-      ssh_allow_users+=" "
+    local ssa_host="$HTAN_ENTERED_HOST"
+
+    AddHost "$ssa_host"
+    Line
+
+    # create sudo user for SmallServerAdmin
+    local ssa_ssh_has_user=false
+    local ssa_ssh_user="ssa"
+    local ssa_ssh_password="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 12)"
+
+    # generate ssa user
+    while true; do
+
+      if id -u "$ssa_ssh_user" >/dev/null 2>&1; then
+        # generate new user name
+        ssa_ssh_user="ssa$(shuf -i 1-65535 -n 1)"
+        continue
+      fi
+
+      # create user
+      local c="sudo adduser $ssa_ssh_user --quiet --shell /bin/bash --no-create-home --disabled-password --gecos 'SmallServerAdmin,$(GetServerIP),,support@adminlikes.com' >> $HTAN_LOG 2>&1"
+
+      Execute -c="$c" -m="$(gettext "Creating %s …")" -a="$ssa_ssh_user" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+      if [[ $? = 0 ]]; then
+        # set password
+        Line
+        c="sudo bash -c 'echo -e \"$ssa_ssh_password\n$ssa_ssh_password\" | passwd \"$ssa_ssh_user\"' >> $HTAN_LOG 2>&1"
+        Execute "$c" -m="$(gettext "Setting the password for %s …")" -a="$ssa_ssh_user" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+        Line
+      else
+        # error
+        Line
+        if id -u "$ssa_ssh_user" >/dev/null 2>&1; then
+          # remove created user
+          c="sudo userdel $ssa_ssh_user --remove"
+          Execute "$c" -m="$(gettext "Removing %s …")" -a="$ssa_ssh_user" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+          Line
+        fi
+        continue
+      fi
+
+      # add user to sudo
+      if ! groups "$ssa_ssh_user" 2> /dev/null | grep -q "\bsudo\b"; then
+        c="sudo usermod -a -G sudo $ssa_ssh_user"
+        Execute "$c" -m="$(gettext "Adding %s to the %s …")" -a="$ssa_ssh_user" -a="sudo" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      else
+        Message "$(gettext "The user %s is a member of %s.")" "$ssa_ssh_user" "sudo"
+      fi
+
+      break
+
+    done
+
+    Line
+
+    # config SmallServerAdmin
+    local ssa_config_source="$HTAN_PATH_DATA/ssa.config.php"
+    local ssa_config_target="$www_path/ssa.config.php"
+    if [[ -f $ssa_config_source ]]; then
+      local c="sudo cp $ssa_config_source $ssa_config_target >> $HTAN_LOG 2>&1"
+      Execute -c="$c" -m="$(gettext "Creating configuration file for %s …")" -a="SmallServerAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      # config
+      local ssa_modules="users" ssa_dbadmin_list=""
+
+      if PackageInstalled subversion; then
+        ssa_modules+=",svn"
+      fi
+
+      if PackageInstalled phpmyadmin || PackageInstalled phppgadmin; then
+        ssa_modules+=",dbadmin"
+      fi
+
+      if PackageInstalled phpmyadmin; then
+        ssa_dbadmin_list+="['file_name' => 'mysql.php', 'title' => 'MySql']"
+      fi
+
+      if PackageInstalled phppgadmin; then
+        if [[ -n "$ssa_dbadmin_list" ]]; then
+          ssa_dbadmin_list+=", "
+        fi
+        ssa_dbadmin_list+="['file_name' => 'pgsql.php', 'title' => 'PostgreSql']"
+      fi
+
+      ssa_modules+=",sites,files,monitoring,services,ssh,settings"
+
+      local ssa_wsearchstring="nginx,apache,php"
+      local ssa_web_htan_enabled="FALSE"
+
+      if [[ -f "/usr/lib/htan-runner/HTAN.Runner.exe" ]]; then
+        ssa_wsearchstring+=",htan-runner"
+        ssa_web_htan_enabled="TRUE"
+      fi
+
+      # if PackageInstalled php5-fpm; then
+      #   ssa_wsearchstring+=",php5-fpm"
+      # fi
+
+      # if $hasPhp7; then
+      #   ssa_wsearchstring+=",php7-fpm,php7.0-fpm"
+      # fi
+
+      ReplaceMarker $ssa_config_target "HTAN_Version" "$HTAN_VERSION"
+      ReplaceMarker $ssa_config_target "modules" "$ssa_modules"
+      ReplaceMarker $ssa_config_target "WServices_SearchString" "$ssa_wsearchstring"
+      ReplaceMarker $ssa_config_target "ApacheHost" "127.0.0.1"
+      ReplaceMarker $ssa_config_target "ApachePort" "8080"
+      ReplaceMarker $ssa_config_target "PhpFastCgiPort" "9001"
+      ReplaceMarker $ssa_config_target "AspNetFastCgiPort" "9100"
+
+      local ssh_port="$(GetValue /etc/ssh/sshd_config Port)"
+
+      if [[ -z "$ssh_port" ]]; then
+        ssh_port=22
+      fi
+
+      ReplaceMarker $ssa_config_target "ssh_host" "$(GetServerIP)"
+      ReplaceMarker $ssa_config_target "ssh_port" "$ssh_port"
+      ReplaceMarker $ssa_config_target "ssh_user" "$ssa_ssh_user"
+      ReplaceMarker $ssa_config_target "ssh_password" "$ssa_ssh_password"
+      ReplaceMarker $ssa_config_target "ssh_required_password" "TRUE"
+
+      ReplaceMarker $ssa_config_target "dbadmin_list" "$ssa_dbadmin_list"
+
+      ReplaceMarker $ssa_config_target "web_htan_enabled" "$ssa_web_htan_enabled"
+
+      local ssa_web_mode="nginx"
+
+      if PackageInstalled apache2; then
+        ssa_web_mode+="+apache"
+      fi
+
+      ReplaceMarker $ssa_config_target "web_mode" "$ssa_web_mode"
+    else
+      Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="SmallServerAdmin" -a="$ssa_config_source" -s="$DEF_STYLE_ERROR"
+      Line
     fi
-    ssh_allow_users+="$ssa_ssh_user"
-    SetValue "/etc/ssh/sshd_config" "AllowUsers" "$ssh_allow_users"
-    # reload ssh
-    ServiceReload sshd
+
+    # add user to ssh
+    local ssh_allow_users="$(GetValue /etc/ssh/sshd_config AllowUsers)"
+    if [[ -n "$ssh_allow_users" && "$ssh_allow_users" != *"$ssa_ssh_user"* ]]; then
+      ssh_allow_users+=" "
+      ssh_allow_users+="$ssa_ssh_user"
+      SetValue "/etc/ssh/sshd_config" "AllowUsers" "$ssh_allow_users"
+      # reload ssh
+      ServiceReload sshd
+      Line
+    fi
+
+    # access
+    local ssa_panel_access=" "
+
+    Message "$(gettext "To increase security it is recommended to restrict access to the panel by IP.")"
     Line
-  fi
 
-  # access
-  local ssa_panel_access=" "
+    if Confirm "$(gettext "Do you want to restrict access by IP?")" -yes; then
+      local current_client_ip="$(echo "$SSH_CLIENT" | awk '{ print $1}')"
+      local address_to_add="" ssa_panel_acs_adr_yesno="-yes"
 
-  Message "$(gettext "To increase security it is recommended to restrict access to the panel by IP.")"
-  Line
+      while true; do
 
-  if Confirm "$(gettext "Do you want to restrict access by IP?")" -yes; then
-    local current_client_ip="$(echo "$SSH_CLIENT" | awk '{ print $1}')"
-    local address_to_add="" ssa_panel_acs_adr_yesno="-yes"
+        Message "$(gettext "Enter a network or address for allow access:")" -s="$DEF_STYLE_ENTER"
+        Read -e -i "$current_client_ip" address_to_add
+        Line
+
+        if [[ -n "$address_to_add" ]]; then
+          # add address to allow list
+          if [[ "$ssa_panel_access" == " " ]]; then
+            ssa_panel_access=$'\x01\x01'
+          else
+            ssa_panel_access+=$'\x01'
+          fi
+          ssa_panel_access+="  allow $address_to_add;"
+          ssa_panel_acs_adr_yesno="-yes"
+          current_client_ip=""
+        else
+          ssa_panel_acs_adr_yesno="-no"
+        fi
+
+        if ! Confirm "$(gettext "Do you want to add another address?")" $ssa_panel_acs_adr_yesno; then
+          break
+        fi
+
+        Line
+
+      done
+
+      # rules not empty
+      if [[ "$ssa_panel_access" != " " ]]; then
+        # deny all
+        ssa_panel_access+=$'\x01'
+        ssa_panel_access+="  deny all;"
+      fi
+
+      Line
+    else
+      Line
+    fi
+
+    if [[ "$ssa_panel_access" == " " ]]; then
+      ssa_panel_access=$'\x01\x01'
+      ssa_panel_access+="  # allow 192.168.100.1;"
+      ssa_panel_access+=$'\x01'
+      ssa_panel_access+="  # allow 192.168.1.0/24;"
+      ssa_panel_access+=$'\x01'
+      ssa_panel_access+="  # deny all;"
+      ssa_panel_access+=$'\x01'
+      ssa_panel_access+="  # etc"
+      ssa_panel_access+=$'\x01'
+      ssa_panel_access+="  # for details, visit"
+      ssa_panel_access+=$'\x01'
+      ssa_panel_access+="  # http://nginx.org/en/docs/http/ngx_http_access_module.html"
+    fi
+
+    # prepare data to config of nginx
+    local phpmyadmin_conf=" " phppgadmin_conf=" "
+
+    if PackageInstalled phpmyadmin; then
+      phpmyadmin_conf=$'\x01\x01'
+      phpmyadmin_conf+="$(cat $HTAN_PATH_DATA/nginx/ssa-phpmyadmin.conf | sed -r ':a;N;$!ba;s/\n{1}/\x01/g')"
+    fi
+
+    if PackageInstalled phppgadmin; then
+      phppgadmin_conf=$'\x01\x01'
+      phppgadmin_conf+="$(cat $HTAN_PATH_DATA/nginx/ssa-phppgadmin.conf | sed -r ':a;N;$!ba;s/\n{1}/\x01/g')"
+    fi
+
+    # php-fpm
+    local ssa_php_fpm="$(GetPhpFpmListen | head -1)"
+
+    # php5
+    if PackageInstalled php5-fpm; then
+      ssa_php_fpm="$(GetPhpFpmListen --version=5 | head -1)"
+    fi
+
+    # php7
+    if $hasPhp7; then
+      ssa_php_fpm="$(GetPhpFpmListen --version=7 | head -1)"
+
+      if [[ -z "$ssa_php_fpm" ]]; then
+        ssa_php_fpm="$(GetPhpFpmListen | head -1)"
+      fi
+
+      if [[ -z "$ssa_php_fpm" ]]; then
+        ssa_php_fpm="/var/run/php7.0-fpm.sock"
+      fi
+    fi
+
+    # listen not found
+    if [[ -z "$ssa_php_fpm" ]]; then
+      ssa_php_fpm="/var/run/php-fpm.sock"
+    fi
+
+    # is unix socket
+    if [[ "$ssa_php_fpm" =~ ".sock" ]]; then
+      ssa_php_fpm="unix:$ssa_php_fpm"
+    fi
+
+    # set listen
+    phpmyadmin_conf="${phpmyadmin_conf/\{php-fpm\}/$ssa_php_fpm}"
+    phppgadmin_conf="${phppgadmin_conf/\{php-fpm\}/$ssa_php_fpm}"
+
+    # add site to nginx
+    AddSiteToNginx -host="$ssa_host" -source="ssa.conf" -root="$www_path" -htpasswd="$htpasswd_path" -mysqladmin="$phpmyadmin_conf" -postgresadmin="$phppgadmin_conf" -access="$ssa_panel_access" -php-fpm="$ssa_php_fpm" -newline=$'\x01'
+    Line
+
+    # add web users
+    local ssa_username ssa_password
+    local has_users=false add_other_user="-yes"
+    local si_users=""
 
     while true; do
 
-      Message "$(gettext "Enter a network or address for allow access:")" -s="$DEF_STYLE_ENTER"
-      Read -e -i "$current_client_ip" address_to_add
-      Line
-
-      if [[ -n "$address_to_add" ]]; then
-        # add address to allow list
-        if [[ "$ssa_panel_access" == " " ]]; then
-          ssa_panel_access=$'\x01\x01'
-        else
-          ssa_panel_access+=$'\x01'
+      if ! Confirm "$(gettext "Do you want to add the permission to access the panel?")" $add_other_user; then
+        if [[ $has_users = false ]]; then
+          Line
+          Message "$(gettext "Access to the panel is not possible without login and password?\nTo grant permission to access the panel, run the following command:\nsudo htpasswd -dcb %s usersnameToAccess userPassword")" "$htpasswd_path" -s="$DEF_STYLE_WARNING"
         fi
-        ssa_panel_access+="  allow $address_to_add;"
-        ssa_panel_acs_adr_yesno="-yes"
-        current_client_ip=""
-      else
-        ssa_panel_acs_adr_yesno="-no"
-      fi
-
-      if ! Confirm "$(gettext "Do you want to add another address?")" $ssa_panel_acs_adr_yesno; then
         break
       fi
 
       Line
 
-    done
+      Message "$(gettext "Enter a username:")" -s="$DEF_STYLE_ENTER"
 
-    # rules not empty
-    if [[ "$ssa_panel_access" != " " ]]; then
-      # deny all
-      ssa_panel_access+=$'\x01'
-      ssa_panel_access+="  deny all;"
-    fi
-
-    Line
-  fi
-
-  if [[ "$ssa_panel_access" == " " ]]; then
-    ssa_panel_access=$'\x01\x01'
-    ssa_panel_access+="  # allow 192.168.100.1;"
-    ssa_panel_access+=$'\x01'
-    ssa_panel_access+="  # allow 192.168.1.0/24;"
-    ssa_panel_access+=$'\x01'
-    ssa_panel_access+="  # deny all;"
-    ssa_panel_access+=$'\x01'
-    ssa_panel_access+="  # etc"
-    ssa_panel_access+=$'\x01'
-    ssa_panel_access+="  # for details, visit"
-    ssa_panel_access+=$'\x01'
-    ssa_panel_access+="  # http://nginx.org/en/docs/http/ngx_http_access_module.html"
-  fi
-
-  # add to nginx
-  local phpmyadmin_conf=" " phppgadmin_conf=" "
-
-  if PackageExists phpmyadmin; then
-    phpmyadmin_conf=$'\x01\x01'
-    phpmyadmin_conf+="$(cat $HTAN_PATH_DATA/nginx/ssa-phpmyadmin.conf | sed -r ':a;N;$!ba;s/\n{1}/\x01/g')"
-  fi
-
-  if PackageExists phppgadmin; then
-    phppgadmin_conf=$'\x01\x01'
-    phppgadmin_conf+="$(cat $HTAN_PATH_DATA/nginx/ssa-phppgadmin.conf | sed -r ':a;N;$!ba;s/\n{1}/\x01/g')"
-  fi
-
-  AddSiteToNginx -host="$ssa_host" -source="ssa.conf" -root="$www_path" -htpasswd="$htpasswd_path" -mysqladmin="$phpmyadmin_conf" -postgresadmin="$phppgadmin_conf" -access="$ssa_panel_access" -newline=$'\x01'
-  Line
-
-  # add web users
-  local ssa_username ssa_password
-  local has_users=false add_other_user="-yes"
-  local si_users=""
-
-  while true; do
-
-    # Хотите добавить разрешение на доступ к панели?
-    if ! Confirm "$(gettext "Do you want to add the permission to access the panel?")" $add_other_user; then
-      if [[ $has_users = false ]]; then
-        Line
-        # Доступ к панели будет невозможен без ввода логина и пароля.\nЧтобы предоставить разрешение на доступ к панели, выполните следующую команду:\nsudo htpasswd -dcb %s usersname password\n, где usersname - имя пользователя, password - пароль.
-        Message "$(gettext "Access to the panel is not possible without login and password?\nTo grant permission to access the panel, run the following command:\nsudo htpasswd -dcb %s usersnameToAccess userPassword")" "$htpasswd_path" -s="$DEF_STYLE_WARNING"
-      fi
-      break
-    fi
-
-    Line
-
-    Message "$(gettext "Enter a username:")" -s="$DEF_STYLE_ENTER"
-
-    Read -e -i "$ssa_username" ssa_username
-
-    Line
-
-    if [[ -n "$ssa_username" ]]; then
-      if EnterPassword; then
-        local ssa_password="$HTAN_PASSWORD"
-        local htpasswd_args="-db"
-        
-        if [[ ! -f "$htpasswd_path" ]]; then
-          htpasswd_args="-dcb"
-        fi
-
-        Line
-
-        Execute "sudo htpasswd $htpasswd_args $htpasswd_path $ssa_username $ssa_password >> $HTAN_LOG 2>&1" -m="$(gettext "Adding permissions for %s …")" -a="$ssa_username" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-
-        if [[ $? = 0 ]]; then
-          has_users=true
-          add_other_user="-no"
-          # server info
-          if [[ -n "$si_users" ]]; then
-            si_users+="\n"
-          fi
-          si_users+="$(gettext "Login"): $ssa_username\n"
-          si_users+="$(gettext "Password"): $ssa_password\n"
-          ssa_username=""
-        fi
-      else
-        Message "$(gettext "Error: User %s not found.")" "$ssa_username" -s="$DEF_STYLE_ERROR"
-      fi
+      Read -e -i "$ssa_username" ssa_username
 
       Line
+
+      if [[ -n "$ssa_username" ]]; then
+        if EnterPassword; then
+          local ssa_password="$HTAN_PASSWORD"
+          local htpasswd_args="-db"
+          
+          if [[ ! -f "$htpasswd_path" ]]; then
+            htpasswd_args="-dcb"
+          fi
+
+          Line
+
+          if [[ -x "$(command -v htpasswd)" ]]; then
+            Execute "sudo htpasswd $htpasswd_args $htpasswd_path $ssa_username $ssa_password >> $HTAN_LOG 2>&1" -m="$(gettext "Adding permissions for %s …")" -a="$ssa_username" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+          else
+            command="sudo bash -c \"printf '%s:%s\n' '$ssa_username' '$(openssl passwd -crypt $ssa_password)' >> $htpasswd_path\" >> $HTAN_LOG 2>&1"
+            Execute "$command" -m="$(gettext "Adding permissions for %s …")" -a="$ssa_username" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+          fi
+
+          if [[ $? = 0 ]]; then
+            has_users=true
+            add_other_user="-no"
+            # server info
+            if [[ -n "$si_users" ]]; then
+              si_users+="\n"
+            fi
+            si_users+="$(gettext "Login"): $ssa_username\n"
+            si_users+="$(gettext "Password"): $ssa_password\n"
+            ssa_username=""
+          fi
+        else
+          Message "$(gettext "Error: User %s not found.")" "$ssa_username" -s="$DEF_STYLE_ERROR"
+        fi
+
+        Line
+      else
+        Message "$(gettext "Error: Username is required. Value cannot be empty.")" -s="$DEF_STYLE_ERROR"
+      fi
+
+    done
+
+    Line
+
+    # server info
+    ServerInfo "SmallServerAdmin:\n"
+    ServerInfo "--------------------------------------------\n"
+    ServerInfo "$(gettext "Address"): http://$ssa_host\n"
+    ServerInfo "$si_users"
+    ServerInfo "--------------------------------------------\n\n"
+    
+    if [[ -f "$www_path/.version" ]]; then
+      HTAN_INSTALLED+=("SmallServerAdmin v$(cat $www_path/.version)")
     else
-      Message "$(gettext "Error: Username is required. Value cannot be empty.")" -s="$DEF_STYLE_ERROR"
+      HTAN_INSTALLED+=("SmallServerAdmin unknown version")
     fi
-
-  done
-
-  Line
-
-  # server info
-  ServerInfo "SmallServerAdmin:\n"
-  ServerInfo "--------------------------------------------\n"
-  ServerInfo "$(gettext "Address"): http://$ssa_host\n"
-  ServerInfo "$si_users"
-  ServerInfo "--------------------------------------------\n\n"
-  
-  if [[ -f "$www_path/.version" ]]; then
-    HTAN_INSTALLED+=("SmallServerAdmin v$(cat $www_path/.version)")
-  else
-    HTAN_INSTALLED+=("SmallServerAdmin unknown version")
   fi
 
   Message "$(gettext "Done.")"

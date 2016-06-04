@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,10 +26,10 @@
 #   23.09.2015
 #
 # REVISION:
-#   15.10.2015
+#   25.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -68,17 +68,18 @@ IncludeTool package service config
 
 ConfigRCS()
 {
-  Line =
-  # # Конфигурация поведения сценариев загрузки (rcS).
-  Message "$(gettext "# Configuring %s.")" "rcS" -s="$DEF_STYLE_HEADER"
-  Line =
-
   local config=/etc/default/rcS
   local fsckfix=no
 
-  # При аварийном завершении работы, система может проверить и попытаться автоматически исправить ошибки файловой системы (FSCKFIX).
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Configuring %s.")" "rcS" -s="$DEF_STYLE_HEADER"
+    Line =
+  fi
+
   Message "$(gettext "When the emergency shutdown, the system can automatically check and try to fix file system errors (FSCKFIX).")"
-  # Хотите включить эту опцию?
+  Line
+
   if Confirm "$(gettext "Do you want to enable this option?")" -yes; then
     fsckfix=yes
   fi

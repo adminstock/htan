@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,7 +26,7 @@
 #   23.09.2015
 #
 # REVISION:
-#   27.04.2016
+#   25.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -75,14 +75,15 @@ InstallSSH()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Configuring %s.")" "SSH" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Configuring %s.")" "SSH" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Протокол SSH (Secure SHell) необходим для удаленного управления сервером через терминал.
-  Message "$(gettext "Secure Shell (SSH) is a cryptographic (encrypted) network protocol to allow remote login and other network services to operate securely over an unsecured network.")"
+    Message "$(gettext "Secure Shell (SSH) is a cryptographic (encrypted) network protocol to allow remote login and other network services to operate securely over an unsecured network.")"
 
-  Line
+    Line
+  fi
 
   PackageInstall openssh-server -confirm=false -title="OpenSSH" $tested
 
@@ -97,23 +98,19 @@ InstallSSH()
 
   if [[ "$port" == 22 ]]; then
     Line
-    # По умолчанию для подключения к серверу SSH используется порт 22.\nДля безопасности рекомендуется изменить номер порта, поскольку стандартный порт будет подвергаться постоянным атакам.\nЖелательно, чтобы порт был свободен и не пересекался с другими службами сервера.\nОзнакомиться со списком стандартных портов можно в Википедиа:\nhttps://ru.wikipedia.org/wiki/Список_портов_TCP_и_UDP\nВы можете выбрать любой порт, который вам понравится.
     Message "$(gettext "By default, to connect to an SSH server uses port 22.\nTo increase security it is recommended to change the port number to any free port.")"
     Line
     need_port=true
   fi
 
   if ! $need_port; then
-    # С текущей конфигурацией, сервер SSH доступен на порте %s.
     Message "$(gettext "With the current configuration, the SSH server is accessible on port %s.")" "$port"
-    # Хотите изменить номер порта?
     if Confirm "$(gettext "Do you want to change the port number?")" -no; then
       need_port=true
     fi
   fi
 
   while $need_port; do
-    # Введите номер порта (в диапазоне от 1 024 до 65 535):
     Message "$(gettext "Enter the port number (between 1 024 and 65 535):")" -s="$DEF_STYLE_ENTER"
     Read -e -i "$port" port
 
@@ -121,7 +118,6 @@ InstallSSH()
       set_port=true
       break
     else
-      # Ожидается целое число в диапазоне от 1 024 до 65 535.
       Message "$(gettext "Expected integer ranging from 1 024 to 65 535.")" -s="$DEF_STYLE_ERROR"
     fi
   done
@@ -147,23 +143,17 @@ InstallSSH()
 
   Line
 
-  # Для большей надежности вы можете разрешить доступ к подключению к серверу только определенным пользователям.
   Message "$(gettext "To increase security, you can allow access to the connection to the server only to specific users.")"
 
   while true; do
-    # Укажите имена пользователей, которым разрешено подключение по протоколу SSH:
     Message "$(gettext "Enter the names of users who are allowed SSH connections:")" -s="$DEF_STYLE_ENTER"
-    # (можно указать более одного пользователя, разделяя имена пробелом)
     Message "$(gettext "(you can specify more than one user by separating the names with a space)")" -s="$DEF_STYLE_ENTER"
 
     Read -e -i "$allow_users" allow_users
 
     if [ "$allow_users" = "" ]; then
-      # Настоятельно рекомендуется указать имена пользователей, которым должно быть доступно подключение через SSH.
       Message "$(gettext "It is strongly recommended to restrict the list of users to access via SSH.")" -s="$DEF_STYLE_WARNING"
-      # Вы действительно не хотите ограничивать доступ к серверу SSH?
       if Confirm "$(gettext "You really do not want to introduce restrictions on access to server over SSH?")" -yes; then
-        # Вы можете в любое время можете изменить конфигурацию сервера SSH в файле %s.
         Message "$(gettext "You can at any time, can change the configuration of the SSH server in the file %s.")" "$config"
         break
       fi

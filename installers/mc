@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,10 +26,10 @@
 #   23.09.2015
 #
 # REVISION:
-#   15.10.2015
+#   25.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -75,16 +75,16 @@ InstallMC()
   fi
   # // --
 
-  Line =
-  # # Установка Midnigth Commander.
-  Message "$(gettext "# Installing %s.")" "Midnigth Commander" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing %s.")" "Midnigth Commander" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Midnigth Commander - это файловый менеджер. Программа сделана в стиле FAR/Norton и может быть удобна при миграции с Windows систем.
-  Message "$(gettext "Midnight Commander is a visual file manager.")"
-  Line
+    Message "$(gettext "Midnight Commander is a visual file manager.")"
+    Line
+  fi
 
-  PackageInstall mc -confirm=true -title="Midnigth Commander" $tested
+  PackageInstall mc -confirm="$(NeedUserConfirmationToInstall true)" -title="Midnigth Commander" $tested
 
   Line
   Message "$(gettext "Done.")"

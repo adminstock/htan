@@ -1,16 +1,30 @@
 # HTAN
 
-**HTAN** - это набор скриптов для развертывания веб-хостинга на базе **Debian**.
+**HTAN** - это набор скриптов для развертывания и настройки веб-хостинга на базе **Debian** или **Ubuntu Server**.
 
 ## Системные требования
 
-Сервер **Debian 8** без предустановленного ПО (minimal).
+Сервер **Debian 7** или **Debian 8** без предустановленного ПО (minimal),
+
+или
+
+**Ubuntu Server 16**
+
+с доступом к Интернет.
+
+Минимальный объем ОЗУ **256 Мб**.
+
+Однако для установки некоторых компонентов из исходного кода может потребоваться не менее **1 Гб** оперативной памяти.
+
+Минимальный объем свободного пространства на жестком диске: **4 Гб**.
 
 ## Лицензия
 
 Исходный код **HTAN** предоставляется на условиях лицензии **Apache License Version 2.0**.
 
 ## Установка и использование
+
+### Debian
 
 ```bash
 # требуются права root
@@ -20,16 +34,66 @@ su -l root
 apt-get update && apt-get upgrade
 
 # установка необходимых компонентов
-apt-get install -y less libpcre3 subversion
+apt-get install -y less libpcre3 git
 
-# загрузка htan
-svn export https://github.com/adminstock/htan.git/trunk/ /usr/lib/htan
+# получение htan в папку /usr/lib/htan
+git clone https://github.com/adminstock/htan.git /usr/lib/htan
+
+# создание символьных ссылок на htan (для быстрого запуска)
+[[ -f /sbin/htan ]] || ln -s /usr/lib/htan/run /sbin/htan
+[[ -f /usr/sbin/htan ]] || ln -s /usr/lib/htan/run /usr/sbin/htan
 
 # установка необходимых разрешений
+[[ -f /sbin/htan ]] && chmod u=rwx /sbin/htan
+[[ -f /usr/sbin/htan ]] && chmod u=rwx /usr/sbin/htan
 chmod u=rwx /usr/lib/htan/run
 
 # запуск htan
-/usr/lib/htan/run --lang=ru
+htan --lang=ru
+```
+
+### Ubuntu Server
+
+```bash
+# обновление сервера
+sudo apt-get update && sudo apt-get upgrade
+
+# установка необходимых компонентов
+sudo apt-get install -y less libpcre3 git
+
+# получение htan в папку /usr/lib/htan
+sudo git clone https://github.com/adminstock/htan.git /usr/lib/htan
+
+# создание символьных ссылок на htan (для быстрого запуска)
+[[ -f /sbin/htan ]] || sudo ln -s /usr/lib/htan/run /sbin/htan
+[[ -f /usr/sbin/htan ]] || sudo ln -s /usr/lib/htan/run /usr/sbin/htan
+
+# установка необходимых разрешений
+[[ -f /sbin/htan ]] && sudo chmod u=rwx /sbin/htan
+[[ -f /usr/sbin/htan ]] && sudo chmod u=rwx /usr/sbin/htan
+sudo chmod u=rwx /usr/lib/htan/run
+
+# запуск htan
+sudo htan --lang=ru
+```
+
+## Обновление до новой версии
+
+Для обновления **HTAN** выполните следующую команду:
+
+```
+# переход в папку htan
+cd /usr/lib/htan/
+# получение обновлений
+sudo git fetch origin && \
+sudo git reset --hard origin/[tag/branch/commit-id usually: master]
+```
+
+либо удалите **HTAN** и выполните установку заново:
+
+```
+# удаление
+sudo rm -r /usr/lib/htan/
 ```
 
 ## Компоненты
@@ -46,7 +110,7 @@ chmod u=rwx /usr/lib/htan/run
 - Apache2
 - Nginx
 
-_**NOTE:** **Nginx** will forward requests to **Apache**._
+_**ПРИМЕЧАНИЕ:** **Apache** на заднем плане, получает запросы от **Nginx**._
 
 ### FTP Server
 - Very Secure FTP Daemon (vsftpd)
@@ -56,6 +120,7 @@ _**NOTE:** **Nginx** will forward requests to **Apache**._
 
 ### Application Development
 - PHP5
+- PHP7 (v7.0.6 из исходного кода)
 - Mono ASP.NET
 
 ### Database

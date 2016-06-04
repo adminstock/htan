@@ -1,0 +1,379 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of PHP7 from source code.
+#
+# USAGE:
+#   php7 [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 7/8 or Ubuntu 16, sudo
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   10.05.2016
+#
+# REVISION:
+#   29.05.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   PHP7 from source code
+#
+# HTAN_CATEGORY:
+#   Application Development
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "php7-src" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "php7-src" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config php
+
+InstallPHP7FromSourceCode()
+{
+  local phpVersion="7.0.6" # you can set other version
+  local phpDownloadUrl="http://de1.php.net/get/php-$phpVersion.tar.bz2/from/this/mirror"
+  local srcFolderPath="/usr/local/src/php-$phpVersion"
+  local srcFileName="php$phpVersion.tar.bz2"
+  local phpPath="/opt/php/$phpVersion"
+  local phpConfigure="--prefix=$phpPath \
+--enable-fpm \
+--enable-mysqlnd \
+--enable-mbstring \
+--enable-sockets \
+--enable-zip \
+--enable-ftp \
+--enable-soap \
+--with-iconv \
+--with-config-file-path=$phpPath/etc \
+--with-curl \
+--with-gd \
+--with-fpm-user=www-data \
+--with-fpm-group=www-data \
+--with-mysql-sock=/var/run/mysqld/mysqld.sock \
+--with-mysqli=mysqlnd \
+--with-pdo-mysql=/usr \
+--with-pgsql \
+--with-pdo-pgsql=/usr \
+--with-zlib=/usr \
+--with-bz2=/usr \
+--with-gettext=/usr \
+--with-mcrypt \
+--with-mhash \
+--with-openssl \
+--with-jpeg-dir=/usr \
+--with-png-dir=/usr \
+--with-pcre-regex"
+
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "PHP7" -s="$DEF_STYLE_HEADER"
+    Line =
+  fi
+
+  if [[ -d "$phpPath" ]]; then # PackageInstalled "php7" || PackageInstalled "php7.0" || 
+    Message "$(gettext "The system found %s. Installing is not required.")." "PHP v$phpVersion"
+    Line
+
+    if ! Confirm "$(gettext "Do you want to delete the found version for new installation and configuration?")" -no; then
+      return
+    fi
+  fi
+
+  if ! $HTAN_INSTALL_CONFIRMED; then
+    if ! Confirm "$(gettext "Do you want to install %s?")" "PHP7" -yes; then
+      Line
+      Message "$(gettext "Operation canceled by the user.")"
+      return
+    else
+      Line
+    fi
+  fi
+
+  # TODO: PHP version select
+
+  local ram=$(cat /proc/meminfo | grep MemTotal: | sed -r "s/MemTotal:\s+([0-9]+)\s*kB/\1/")
+  ram=$(($ram / 1000))
+
+  if (($ram < 1000)); then
+    Message "$(gettext "The operation requires at least %s MB of RAM. At the current machine only %s MB of RAM.")" -a=1000 -a=$ram -s="$DEF_STYLE_WARNING"
+    Line
+
+    if ! Confirm "$(gettext "Do you want to continue?")" -no; then
+      Line
+      Message "$(gettext "Operation canceled by the user.")"
+      return
+    fi
+
+    Line
+  fi
+
+  # remove php5
+  # local autoremove_need=false
+  # if PackageInstalled "php5"; then
+  #  Message "$(gettext "On this server is already installed %s.")" "PHP5"
+  #  Message "$(gettext "Simultaneous work of the PHP5 and PHP7 in the current HTAN version is not supported.")"
+  #  Line
+  #
+  #  if Confirm "$(gettext "Do you want to delete %s?")" -a="PHP5" -yes; then
+  #    Line
+  #    Execute -c="export DEBIAN_FRONTEND=noninteractive; sudo -E apt-get -q -y purge php5 php5-fpm libapache2-mod-php5 php5-cli php5-common >> $HTAN_LOG 2>&1" -m="$(gettext "Removing %s …")" -a="PHP5" -sp="$DEF_STYLE_PACKAGE_PROC" -sc="$DEF_STYLE_PACKAGE_COMP"
+  #    Line
+  #    autoremove_need=true
+  #  else
+  #    Message "$(gettext "The operation cannot be completed.")"
+  #    return
+  #  fi
+  # fi
+
+  # installation of dependents
+  PackageInstall "build-essential" -confirm=false
+  Line
+
+  PackageInstall "autoconf" -confirm=false
+  Line
+
+  PackageInstall "bison" -confirm=false
+  Line
+
+  PackageInstall "pkg-config" -confirm=false
+  Line
+
+  PackageInstall "libfcgi-dev" -confirm=false
+  Line
+
+  PackageInstall "libfcgi0ldbl" -confirm=false
+  Line
+
+  PackageInstall "libxml2-dev" -confirm=false
+  Line
+
+  PackageInstall "zlib1g-dev" -confirm=false
+  Line
+
+  PackageInstall "libbz2-dev" -confirm=false
+  Line
+
+  PackageInstall "libpng12-dev" -confirm=false
+  Line
+
+  PackageInstall "libjpeg-dev" -confirm=false
+  Line
+
+  PackageInstall "openssl" -confirm=false
+  Line
+
+  PackageInstall "libssl-dev" -confirm=false
+  Line
+
+  PackageInstall "libcurl4-openssl-dev" -confirm=false
+  Line
+
+  PackageInstall "libsasl2-dev" -confirm=false
+  Line
+
+  PackageInstall "libmcrypt-dev" -confirm=false
+  Line
+
+  PackageInstall "libpq-dev" -confirm=false
+  Line
+
+  PackageInstall "libmysqlclient-dev" -confirm=false || return OperationCannotBeCompleted
+  Line
+
+  if PackageInstalled apache2; then
+    PackageInstall "apache2-dev" -confirm=false
+    Line
+  fi
+
+  # install php7 from sources
+  if [[ ! -d "/usr/local/src" ]]; then
+    command="sudo mkdir -p /usr/local/src >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Creating %s …")" -a="/usr/local/src" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  # if [[ ! -d "/lib/x86_64-linux-gnu" ]]; then
+  #  command="sudo mkdir -p /lib/x86_64-linux-gnu >> $HTAN_LOG 2>&1"
+  #  Execute -c="$command" -m="$(gettext "Creating %s …")" -a="/lib/x86_64-linux-gnu" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  #  Line
+  # fi
+
+  if [[ -e "/tmp/$srcFileName" ]]; then
+    command="sudo rm -f /tmp/$srcFileName >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Removing %s …")" -a="/tmp/$srcFileName" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  # download sources
+  command="sudo wget -O /tmp/$srcFileName $phpDownloadUrl >> $HTAN_LOG 2>&1"
+  Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="PHP $phpVersion" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return OperationCannotBeCompleted -
+  Line
+
+  # extract
+  command="sudo tar jxf /tmp/$srcFileName -C /usr/local/src >> $HTAN_LOG 2>&1"
+  Execute -c="$command" -m="$(gettext "Extraction %s …")" -a="$srcFileName" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return OperationCannotBeCompleted -
+  Line
+
+  # buildconf
+  command="sudo bash -c 'cd $srcFolderPath; ./buildconf --force >> $HTAN_LOG 2>&1'"
+  Execute -c="$command" -m="$(gettext "buildconf …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return OperationCannotBeCompleted -
+  Line
+
+  # configure
+  command="sudo bash -c 'cd $srcFolderPath; ./configure $phpConfigure >> $HTAN_LOG 2>&1'"
+  Execute -c="$command" -m="$(gettext "Preparing …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return OperationCannotBeCompleted -
+  Line
+
+  # make and install
+  Execute -c="sudo bash -c 'cd $srcFolderPath; make >> $HTAN_LOG 2>&1 && make install >> $HTAN_LOG 2>&1'" -m="$(gettext "Installing %s …")" -a="PHP $phpVersion" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || OperationCannotBeCompleted -
+  Line
+
+  # cleaning
+  # if [[ "$autoremove_need" == true ]]; then
+  #  Execute -c="sudo apt-get autoremove >> $HTAN_LOG 2>&1" -m="$(gettext "Cleaning obsolete packages …")" -sp="$DEF_STYLE_PACKAGE_PROC" -sc="$DEF_STYLE_PACKAGE_COMP"
+  #  Line
+  # fi
+
+  # config
+  local phpConfPath="$phpPath/etc/php.ini"
+  Execute -c="sudo cp $srcFolderPath/php.ini-production $phpConfPath >> $HTAN_LOG 2>&1" -m="$(gettext "Configuring %s …")" -a="PHP $phpVersion" -sp="$DEF_STYLE_PACKAGE_PROC" -sc="$DEF_STYLE_PACKAGE_COMP"
+  INI_SetValue "$phpConfPath" "session" "session.save_path" "/tmp"
+
+  # config php-fpm
+  Message "$(gettext "Configuring %s …")" "PHP-FPM"
+  phpConfPath="$phpPath/etc/php-fpm.conf"
+  INI_SetValue "$phpConfPath" "global" "include" "$phpPath/etc/php-fpm.d/*.conf"
+  INI_SetValue "$phpConfPath" "global" "error_log" "/var/log/php-$phpVersion-fpm.log"
+  INI_SetValue "$phpConfPath" "global" "pid" "/var/run/php$phpVersion-fpm.pid" # $phpPath/var/run/php-fpm.pid
+
+  # config php-fpm.d
+  Message "$(gettext "Configuring %s …")" "PHP-FPM Daemon"
+  phpConfPath="$phpPath/etc/php-fpm.d/www.conf"
+
+  INI_SetValue "$phpConfPath" "www" "pm" "dynamic"
+  INI_SetValue "$phpConfPath" "www" "pm.max_children" "5"
+  INI_SetValue "$phpConfPath" "www" "pm.start_servers" "2"
+  INI_SetValue "$phpConfPath" "www" "pm.min_spare_servers" "1"
+  INI_SetValue "$phpConfPath" "www" "pm.max_spare_servers" "3"
+
+  INI_SetValue "$phpConfPath" "www" "listen" "/var/run/php$phpVersion-fpm.sock"
+  INI_SetValue "$phpConfPath" "www" "listen.group" "www-data"
+  INI_SetValue "$phpConfPath" "www" "listen.owner" "www-data"
+
+  INI_SetValue "$phpConfPath" "www" "group" "www-data"
+  INI_SetValue "$phpConfPath" "www" "user" "www-data"
+
+  # daemon
+  local daemonPath="/etc/init.d/php$phpVersion-fpm"
+
+  if [[ -f "$daemonPath" ]]; then
+    Execute -c="sudo update-rc.d -f php$phpVersion-fpm remove >> $HTAN_LOG 2>&1; sudo rm --force $daemonPath >> $HTAN_LOG 2>&1" -m="$(gettext "Removing %s …")" -a="$daemonPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  local command="sudo cp $HTAN_PATH_DATA/php-fpm $daemonPath >> $HTAN_LOG 2>&1"
+
+  if Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$daemonPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"; then
+    ReplaceMarker "$daemonPath" "phpVersion" "$phpVersion"
+    ReplaceMarker "$daemonPath" "phpPath" "$phpPath"
+    ReplaceMarker "$daemonPath" "HTAN_Version" "$HTAN_VERSION"
+    ReplaceMarker "$daemonPath" "Now" "$(date)"
+
+    Execute -c="sudo chmod +x $daemonPath" -m="$(gettext "Set permissions on the %s …")" -a="$daemonPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+
+    command="sudo update-rc.d php$phpVersion-fpm defaults >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Daemon registration …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+
+    ServiceRestart "php$phpVersion-fpm"
+  fi
+
+  # apache
+  # if PackageInstalled apache2; then
+  # TODO
+  # fi
+
+  # create conf.d
+  if [[ ! -d "$phpPath/etc/mods-available" ]]; then
+    Line
+    command="sudo mkdir -p $phpPath/etc/mods-available >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpPath/etc/mods-available" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  fi
+
+  if [[ ! -d "$phpPath/etc/cli/conf.d" ]]; then
+    Line
+    command="sudo mkdir -p $phpPath/etc/cli/conf.d >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpPath/etc/cli/conf.d" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  fi
+
+  if [[ ! -d "$phpPath/etc/fpm/conf.d" ]]; then
+    Line
+    command="sudo mkdir -p $phpPath/etc/fpm/conf.d >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpPath/etc/fpm/conf.d" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  fi
+
+  if PackageInstalled apache2 && [[ ! -d "$phpPath/etc/apache2/conf.d" ]]; then
+    Line
+    command="sudo mkdir -p $phpPath/etc/apache2/conf.d >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpPath/etc/apache2/conf.d" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+  fi
+
+  Line
+  command="sudo rm -f /tmp/$srcFileName >> $HTAN_LOG 2>&1; sudo rm -f -r $srcFolderPath >> $HTAN_LOG 2>&1"
+  Execute -c="$command" -m="$(gettext "Removing temporary files …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+  # info
+  HTAN_INSTALLED+=("PHP v$phpVersion")
+
+  ServerInfo "PHP v$phpVersion:\n"
+  ServerInfo "--------------------------------------------\n"
+  ServerInfo "$(gettext "Location"): $phpPath\n"
+  ServerInfo "$(gettext "Config file"): $phpPath/etc/php.ini\n"
+  ServerInfo "$(gettext "Daemon name"): php$phpVersion-fpm\n"
+  ServerInfo "$(gettext "Socket"): /var/run/php$phpVersion-fpm.sock\n"
+  ServerInfo "--------------------------------------------\n\n"
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallPHP7FromSourceCode

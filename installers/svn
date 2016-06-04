@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo, Nginx, Apache2
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,13 +20,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.0
+#   1.0.1
 #
 # CREATED:
 #   14.01.2016
 #
 # REVISION:
-#   14.01.2016
+#   03.06.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2016. All rights reserved.
@@ -48,11 +48,11 @@
 # Including common
 if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
   {
-    if [[ "${0##*/}" != "xinetd" ]]; then
+    if [[ "${0##*/}" != "svn" ]]; then
       printf "Including the common …"
     fi
     if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
-      if [[ "${0##*/}" != "xinetd" ]]; then
+      if [[ "${0##*/}" != "svn" ]]; then
         OK
       fi
     fi
@@ -75,49 +75,58 @@ InstallSvn()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "Subversion" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "Subversion" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  Message "$(gettext "Apache Subversion (often abbreviated SVN, after the command name svn) is a software versioning and revision control system.")"
-  Line
+    Message "$(gettext "Apache Subversion (often abbreviated SVN, after the command name svn) is a software versioning and revision control system.")"
+    Line
+  fi
 
-  local svn_exists=$(PackageExists subversion && echo true || echo false)
+  local svn_exists=$(PackageInstalled subversion && echo true || echo false)
 
   if [[ $svn_exists == true ]]; then
-    # На сервере обнаружен пакет %s.
     Message "$(gettext "On this server is detected the package %s.")" "Subversion"
     Line
-    # Хотите провести конфигурацию?
     if ! Confirm "$(gettext "Would you like to configure?")" -yes; then
       Line
-      # Операция прервана пользователем.
       Message "$(gettext "Operation canceled by the user.")"
       return
     fi
   else
-    if ! PackageInstall subversion -confirm=true -title="Apache Subversion" $tested; then
+    if ! PackageInstall subversion -confirm="$(NeedUserConfirmationToInstall true)" -title="Apache Subversion" $tested; then
       return
     fi
   fi
 
   Line
 
-  # install libapache2-svn
-  PackageInstall libapache2-svn -confirm=false
+  if ! PackageInstalled apache2; then
+    Message "$(gettext "For WebDav required Apache.")"
+    Line
 
-  Line
-
-  # enbale dav module
-  if ! $(sudo ls /etc/apache2/mods-enabled/ 2> /dev/null | grep -q "dav.load"); then
-    Execute -c="sudo a2enmod dav >> $HTAN_LOG 2>&1" -m="$(gettext "Enabling of the module %s …")" -a="dav" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    RunInstaller apache2 -noincmsg -noheaders
     Line
   fi
- 
-  # enbale dav_svn module
-  if ! $(sudo ls /etc/apache2/mods-enabled/ 2> /dev/null | grep -q "dav_svn.load"); then
-    Execute -c="sudo a2enmod dav_svn >> $HTAN_LOG 2>&1" -m="$(gettext "Enabling of the module %s …")" -a="dav_svn" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+  # install libapache2-svn
+  if PackageInstalled apache2; then
+    PackageInstall libapache2-svn -confirm=false
+
     Line
+
+    # enbale dav module
+    if ! $(sudo ls /etc/apache2/mods-enabled/ 2> /dev/null | grep -q "dav.load"); then
+      Execute -c="sudo a2enmod dav >> $HTAN_LOG 2>&1" -m="$(gettext "Enabling of the module %s …")" -a="dav" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      Line
+    fi
+   
+    # enbale dav_svn module
+    if ! $(sudo ls /etc/apache2/mods-enabled/ 2> /dev/null | grep -q "dav_svn.load"); then
+      Execute -c="sudo a2enmod dav_svn >> $HTAN_LOG 2>&1" -m="$(gettext "Enabling of the module %s …")" -a="dav_svn" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      Line
+    fi
   fi
 
   # folder for repositories
@@ -140,7 +149,7 @@ InstallSvn()
   sudo chmod -R 750 "$repositories" >> $HTAN_LOG 2>&1
 
   # config WebDav
-  if Confirm "$(gettext "Do you want to set up web access to %s?")" "Subversion" -yes; then
+  if PackageInstalled apache2 && Confirm "$(gettext "Do you want to set up web access to %s?")" "Subversion" -yes; then
     Line
     # get host
     EnterHost "$(printf "$(gettext "Enter the domain for %s:")" "Subversion")" -default="svn.$HOSTNAME"
@@ -275,15 +284,16 @@ InstallSvn()
     if [[ -n "$svn_admins_for_si" ]]; then
       ServerInfo "$(gettext "Accounts:")\n$svn_admins_for_si\n"
     fi
-    
+
     # ServerInfo "$(gettext "List of users to access the server is located in a file:"):\n"
     # ServerInfo "/etc/apache2/dav_svn.passwd\n\n"
     # ServerInfo "$(gettext "Use the following command to add a new user:"):\n"
     # ServerInfo "sudo htpasswd -mb /etc/apache2/dav_svn.passwd username password\n"
     ServerInfo "--------------------------------------------\n\n"
+
+    Line
   fi
 
-  Line
   Message "$(gettext "Done.")"
 }
 

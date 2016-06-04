@@ -1,0 +1,114 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of PHP.
+#
+# USAGE:
+#   php-ubuntu [--debug] [--version] [--help] [--nocolor]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Ubuntu 16+
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   27.05.2016
+#
+# REVISION:
+#   29.05.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   PHP for Ubuntu
+#
+# HTAN_CATEGORY:
+#   Application Development
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "php-ubuntu" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "php-ubuntu" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallPhpForUbuntu()
+{
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "PHP" -s="$DEF_STYLE_HEADER"
+    Line =
+  fi
+
+  if (( $SYS_OS_VERSION_MAJOR < 16 )); then
+    Message "$(gettext "Not available for %s v%s.")" "$SYS_OS_NAME" "$SYS_OS_VERSION" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  if ! $HTAN_INSTALL_CONFIRMED; then
+    if ! Confirm "$(gettext "Do you want to install %s?")" "PHP" -yes; then
+      Line
+      Message "$(gettext "Installation canceled by the user.")"
+      return
+    else
+      Line
+    fi
+  fi
+
+  if PackageInstalled apache2; then
+    PackageInstall "php" -confirm=false -title="PHP"
+    Line
+    PackageInstall libapache2-mod-php -confirm=false
+    Line
+  fi
+
+  PackageInstall php-fpm -confirm=false
+  Line
+
+  PackageInstall php-cgi -confirm=false
+  Line
+
+  if Confirm "$(gettext "Do you want to install the Developer Tools for %s?")" "PHP" -no; then
+    Line
+    PackageInstall "php-dev" -confirm=false
+  fi
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallPhpForUbuntu

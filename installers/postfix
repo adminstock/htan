@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,10 +26,10 @@
 #   23.09.2015
 #
 # REVISION:
-#   15.10.2015
+#   25.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -76,15 +76,16 @@ InstallPostfix()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "Postfix" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "Postfix" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # В качестве почтового сервера рекомендуется использовать Postfix.\nPostfix — агент передачи почты (MTA — mail transfer agent).\nПомимо этого, для работы почтового сервера, будет установлен пакет mailutils.
-  Message "$(gettext "Postfix is a free and open-source mail transfer agent (MTA) that routes and delivers electronic mail.")"
-  Line
+    Message "$(gettext "Postfix is a free and open-source mail transfer agent (MTA) that routes and delivers electronic mail.")"
+    Line
+  fi
 
-  PackageInstall postfix -confirm=true -title="Postfix" ${tested[postfix]}
+  PackageInstall postfix -confirm="$(NeedUserConfirmationToInstall true)" -title="Postfix" ${tested[postfix]}
 
   local has_postfix=$?;
 
@@ -107,7 +108,6 @@ InstallPostfix()
   local email=""
 
   while true; do
-    # Хотите получать по почте отчёты о работе сервисов и ошибках?
     if Confirm "$(gettext "Do you want to be notified about errors?")" -no; then
       if EnterEmail -optional; then
         email="$HTAN_ENTERED_EMAIL"
@@ -131,14 +131,12 @@ InstallPostfix()
 
   local default_answer="-yes"
   while true; do
-    # Хотите отправить тестовое письмо?
     if Confirm "$(gettext "Do you want to send a test message?")" "$default_answer"; then
       Line
 
       if EnterEmail -default="$email" -optional; then
         Line
         local email_to="$HTAN_ENTERED_EMAIL"
-        # Отправка сообщения …
         Message "$(gettext "Sending a message …")" -n
         {
           (echo "This is test message." | mail -s "Test" "$email_to" >> $HTAN_LOG 2>&1; wait) && OK
@@ -146,7 +144,6 @@ InstallPostfix()
         {
           Fail
         }
-        #Message "Тестовое сообщение отправлено на адрес $email_to."
         break
       else
         default_answer="-no"

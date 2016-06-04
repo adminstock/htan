@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,7 +26,7 @@
 #   01.03.2016
 #
 # REVISION:
-#   01.03.2016
+#   25.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2016. All rights reserved.
@@ -75,14 +75,16 @@ InstallSysStat()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing %s.")" "SYSSTAT" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing %s.")" "SYSSTAT" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  Message "$(gettext "The sysstat utilities are a collection of performance monitoring tools.")"
-  Line
+    Message "$(gettext "The sysstat utilities are a collection of performance monitoring tools.")"
+    Line
+  fi
 
-  PackageInstall sysstat -confirm=true -title="SYSSTAT" $tested
+  PackageInstall sysstat -confirm="$(NeedUserConfirmationToInstall true)" -title="SYSSTAT" $tested
 
   Line
   Message "$(gettext "Done.")"

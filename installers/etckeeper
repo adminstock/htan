@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,10 +26,10 @@
 #   26.11.2015
 #
 # REVISION:
-#   28.11.2015
+#   25.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -75,16 +75,17 @@ InstallEtckeeper()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "Etckeeper" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "Etckeeper" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Etckeeper - программа для ведения истории изменений файлов конфигурации.\nПри установке или обновлении компонентов, вы сможете фиксировать состояние файлов конфигурации в системе контроля версий.\nЭто может быть полезно при случайном сбросе конфигурации отдельных компонентов системы.
-  Message "$(gettext "Etckeeper lets you keep /etc under version control.")"
-  Line
+    Message "$(gettext "Etckeeper lets you keep /etc under version control.")"
+    Line
+  fi
 
-  if ! PackageInstall "etckeeper" -confirm=true $tested; then
-    # Программа %s не была установлена.
+  if ! PackageInstall "etckeeper" -confirm="$(NeedUserConfirmationToInstall true)" $tested; then
+    Line
     Message "$(gettext "%s has not been installed.")" "Etckeeper"
     return
   fi
@@ -92,7 +93,6 @@ InstallEtckeeper()
   Line
 
   if [[ ! -f "$HTAN_PATH_DATA/etckeeper.conf" ]]; then
-    # Файл %s не найден.
     Message "$(gettext "File %s was not found.")" "$HTAN_PATH_DATA/etckeeper.conf" -s="$DEF_STYLE_ERROR"
     return 1
   fi
@@ -103,7 +103,6 @@ InstallEtckeeper()
 
   local c="sudo cp $HTAN_PATH_DATA/etckeeper.conf /etc/etckeeper/etckeeper.conf >> $HTAN_LOG 2>&1"
 
-  # Конфигурация %s …
   Execute -c="$c" -m="$(gettext "Configuring %s …")" -a="etckeeper" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
 
   if [[ ! -d "/etc/.git" ]]; then

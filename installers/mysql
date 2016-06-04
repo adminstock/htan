@@ -4,13 +4,13 @@
 # Performs installation and configuration of MySql.
 #
 # USAGE:
-#   mysql [--debug] [--version] [--help] [--nocolor] [--tested]
+#   mysql [--debug] [--version] [--help] [--nocolor]
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8 or Ubuntu 14+, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,16 +20,16 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.0
+#   1.0.1
 #
 # CREATED:
 #   23.09.2015
 #
 # REVISION:
-#   18.10.2015
+#   28.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -72,33 +72,26 @@ declare HTAN_MYSQL_ROOT_PASSWORD=""
 
 InstallMySql()
 {
-  # tested version
-  local tested
-  if [[ "$HTAN_TESTED" == true ]]; then
-    tested="-version=5.5.46"
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "MySql" -s="$DEF_STYLE_HEADER"
+    Line =
+
+    Message "$(gettext "MySQL is an open-source relational database management system.")"
+
+    Line
   fi
-  # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "MySql" -s="$DEF_STYLE_HEADER"
-  Line =
-
-  # MySql - популярная, бесплатная реляционная СУБД.
-  Message "$(gettext "MySQL is an open-source relational database management system.")"
-  Line
-
-  if ! PackageInstall mysql-server -confirm=true -title="MySql" $tested; then
-    # Сервер MySql не был установлен.
+  if ! PackageInstall mysql-server -confirm="$(NeedUserConfirmationToInstall true)" -title="MySql"; then
+    Line
     Message "$(gettext "Installation canceled by the user.")"
     return
   fi
 
   Line
 
-  # Придумайте и введите пароль суперпользователя (root) для MySql:
-  # Без пароля сервер MySql будет уязвим!
   if ! EnterPassword -t="$(printf "$(gettext "Come up and enter the root password for %s:")" "MySql")" -w="$(printf "$(gettext "Without password %s is unsafe!")" "MySql")" -o; then
-    # Сервер MySql не был настроен правильно. Операция прервана пользователем.
+    Line
     Message "$(gettext "%s server was not configured correctly. Operation canceled by the user.")" "MySql"
     return
   fi
@@ -108,7 +101,7 @@ InstallMySql()
   Line
 
   local c="sudo mysqladmin -u root password $HTAN_MYSQL_ROOT_PASSWORD >> $HTAN_LOG 2>&1"
-  # Установка пароля root для MySql …
+
   Execute -c="$c" -m="$(gettext "Setting the root password for %s …")" -a="MySql" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
 
   # /etc/mysql/my.cnf

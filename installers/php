@@ -1,0 +1,93 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of PHP.
+#
+# USAGE:
+#   php [--debug] [--version] [--help] [--nocolor]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 7/8 or Ubuntu 14+, sudo
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   27.05.2016
+#
+# REVISION:
+#   29.05.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   PHP
+#
+# HTAN_CATEGORY:
+#   Application Development
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "php" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "php" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package
+
+InstallPHP()
+{
+  if [[ "$SYS_OS_NAME" == "Ubuntu" ]]; then
+    # Ubuntu
+    if (( $SYS_OS_VERSION_MAJOR >= 16 )); then
+      RunInstaller php-ubuntu -noincmsg -confirmed=$HTAN_INSTALL_CONFIRMED -noheaders=$HTAN_NOHEADERS
+
+      if (( $(PackageVersion php-fpm true) < 7 )); then
+        RunInstaller php7-src -noincmsg
+      fi
+    else
+      RunInstaller php7-src -noincmsg -confirmed=$HTAN_INSTALL_CONFIRMED -noheaders=$HTAN_NOHEADERS
+    fi
+  else
+    # Debian
+    if PackageExists php7.0; then # TODO: remove when will come the official packages
+      RunInstaller php7 -noincmsg -confirmed=$HTAN_INSTALL_CONFIRMED -noheaders=$HTAN_NOHEADERS
+    else
+      RunInstaller php5 -noincmsg -confirmed=$HTAN_INSTALL_CONFIRMED -noheaders=$HTAN_NOHEADERS
+      RunInstaller php7-src -noincmsg
+    fi
+  fi
+}
+
+InstallPHP

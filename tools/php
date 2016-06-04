@@ -1,0 +1,827 @@
+#!/bin/bash
+
+#======================================================================
+# Represents tools for PHP.
+#
+# USAGE:
+#   php [--debug] [--version] [--help] [--nocolor]
+#
+#       [
+#         --all[-versions]
+#         [--exclude=1,2,3]
+#         [--include=5,7]
+#       ]
+#
+#       [exists[=version number]]
+#
+#       [get[=version number]]
+#
+#       [get-fpm[=version number]]
+#
+#       [get-fpm-listen[=version number]]
+#
+#       [get-phpize[=version number]]
+#
+#       [get-config[=version number]]
+#
+#       [get-mods[-available][=version number]]
+#
+#       [get-ini[=version number]]
+#
+# NAME:
+#   HTAN for PHP
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 7/8 or Ubuntu 14+, sudo, PHP
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   22.05.2016
+#
+# REVISION:
+#   29.05.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "php" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/common"; then
+      if [[ "${0##*/}" != "php" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+HTAN_INCLUDED_TOOLS=("${HTAN_INCLUDED_TOOLS[@]}" "php")
+
+#======================================================================
+# Searches all installed version of PHP, 
+# and set the result to HTAN_PHP_VERSIONS.
+#
+# GLOBALS:
+#   $HTAN_PHP_VERSIONS
+#     The sorted collection of found PHP versions.
+#
+# USAGE:
+#   GetAllInstalledPhpVersions [-exclude=3,4,5] [-include=7]
+#
+# ARGUMENTS:
+#   -exclude
+#     List of major versions that should be excluded from the results
+#     (comma-separated).
+#
+#   -include
+#     List of major versions that should be included to the results
+#     (comma-separated).
+#
+# RETURNS:
+#   Returns 0 (true) if a versions found; otherwise 1 (false).
+#======================================================================
+GetAllInstalledPhpVersions()
+{
+  ParseArgs "$@"
+  local php_exclude="${HTAN_PARSE_ARGS_RESULT[exclude]:-${HTAN_PARSE_ARGS_RESULT[x]}}"
+  local php_include="${HTAN_PARSE_ARGS_RESULT[include]:-${HTAN_PARSE_ARGS_RESULT[i]}}"
+
+  # Debug "GetAllInstalledPhpVersions"
+
+  if [[ -n "$php_exclude" ]]; then
+    local php_exclude_arr=()
+    SetIFS ','
+    read -r -a php_exclude_arr <<< "${php_exclude}"
+    ResetIFS
+    php_exclude="${php_exclude_arr[@]}"
+  fi
+
+  if [[ -n "$php_include" ]]; then
+    local php_include_arr=()
+    SetIFS ','
+    read -r -a php_include_arr <<< "${php_include}"
+    ResetIFS
+    php_include="${php_include_arr[@]}"
+  fi
+
+  local phpVersionsList=()
+  local phpPath phpVersion
+
+  SetIFS $'\n'
+
+  # search all php
+  for phpPath in $(PhpSearchAllPaths); do
+    # get version number
+    phpVersion="$(PhpParseVersion $phpPath)"
+    Debug "%s: v%s" "$phpPath" "$phpVersion"
+    # check version
+    if [[ -n "$phpVersion" ]] && ! echo "${phpVersionsList[@]}" | grep -q -P "\b$phpVersion\b"; then
+      if [[ -n "$php_exclude" ]] && echo "${php_exclude[@]}" | grep -q -P "\b${phpVersion%%.*}\b"; then
+        # skip the version
+        # Debug "-- skiped"
+        continue
+      fi
+
+      if [[ -n "$php_include" ]] && ! echo "${php_include[@]}" | grep -q -P "\b${phpVersion%%.*}\b"; then
+        # skip the version
+        # Debug "-- skiped"
+        continue
+      fi
+
+      # add the version to result
+      phpVersionsList+=("$phpVersion")
+    fi
+  done
+
+  # sort
+  local sortedPhpVersions
+  SetIFS $'\n'
+  sortedPhpVersions=($(sort --reverse <<<"${phpVersionsList[@]}"))
+  ResetIFS
+
+  phpVersionsList=("${sortedPhpVersions[@]}")
+
+  # Debug "PHP Versions sorted: %s" "${HTAN_PHP_VERSIONS[@]}"
+
+  if ((${#phpVersionsList[@]} > 0)); then
+    for phpVersion in "${phpVersionsList[@]}"; do
+      printf "%s\n" "$phpVersion"
+    done
+
+    return 0
+  else
+    return 1
+  fi
+}
+
+#======================================================================
+# Displays paths to PHP.
+#
+# USAGE:
+#   GetPhp [-version=number]
+#
+# ARGUMENTS:
+#   -version
+#     Version number.
+#
+# RETURNS:
+#   Returns 0 (true) if php found; otherwise 1 (false).
+#======================================================================
+GetPhp()
+{
+  ParseArgs "$@"
+  local php_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  local phpVersionsList=()
+
+  SetIFS $'\n'
+
+  # search all php
+  for phpPath in $(PhpSearchAllPaths --filter=*fpm*,*cgi*,*cli*,*phpize* --exclude); do
+    # get version number
+    phpVersion="$(PhpParseVersion $phpPath)"
+
+    # check version
+    if [[ -z "$phpVersion" ]]; then
+      continue
+    fi
+
+    if [[ -n "$php_version" ]] && ! echo "$phpVersion" | grep -q "^$php_version"; then
+      # skip
+      continue
+    fi
+
+    if echo "${phpVersionsList[@]}" | grep -q -P "\b$phpVersion\b"; then
+      # exists, skip
+      continue
+    fi
+
+    phpVersionsList+=("$phpVersion")
+
+    # output
+    printf "%s\n" "$phpPath"
+  done
+
+  ResetIFS
+
+  if ((${#phpVersionsList[@]} > 0)); then
+    return 0
+  else
+    return 1
+  fi
+}
+
+#======================================================================
+# Displays paths to PHP-FPM.
+#
+# USAGE:
+#   GetPhpFpm [-version=number]
+#
+# ARGUMENTS:
+#   -version
+#     Version number. For example: 5, 7.0
+#
+# RETURNS:
+#   Returns 0 (true) if php-fpm found; otherwise 1 (false).
+#======================================================================
+GetPhpFpm()
+{
+  ParseArgs "$@"
+  local php_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  local phpVersionsList=()
+
+  SetIFS $'\n'
+
+  # search all php
+  for phpPath in $(PhpSearchAllPaths --filter=*fpm*); do
+    # get version number
+    phpVersion="$(PhpParseVersion $phpPath)"
+
+    # check version
+    if [[ -z "$phpVersion" ]]; then
+      continue
+    fi
+
+    if [[ -n "$php_version" ]] && ! echo "$phpVersion" | grep -q "^$php_version"; then
+      # skip
+      continue
+    fi
+
+    if echo "${phpVersionsList[@]}" | grep -q -P "\b$phpVersion\b"; then
+      # exists, skip
+      continue
+    fi
+
+    phpVersionsList+=("$phpVersion")
+
+    # output
+    printf "%s\n" "$phpPath"
+  done
+
+  ResetIFS
+
+  if ((${#phpVersionsList[@]} > 0)); then
+    return 0
+  else
+    return 1
+  fi
+}
+
+#======================================================================
+# Displays paths to PHPIZE.
+#
+# USAGE:
+#   GetPhpize [-version=number]
+#
+# ARGUMENTS:
+#   -version
+#     Version number. For example: 7, 7.0.6
+#
+# RETURNS:
+#   Returns 0 (true) if phpize found; otherwise 1 (false).
+#======================================================================
+GetPhpize()
+{
+  ParseArgs "$@"
+  local php_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  [[ -n "$php_version" ]] && php_version="--version=$php_version"
+
+  PhpSearchByFileName --search="phpize" $php_version
+
+  return $?
+}
+
+#======================================================================
+# Displays paths to php-config.
+#
+# USAGE:
+#   GetPhpConfig [-version=number]
+#
+# ARGUMENTS:
+#   -version
+#     Version number. For example: 5, 5.6, 7, 7.0.5
+#
+# RETURNS:
+#   Returns 0 (true) if php-config found; otherwise 1 (false).
+#======================================================================
+GetPhpConfig()
+{
+  ParseArgs "$@"
+  local php_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  [[ -n "$php_version" ]] && php_version="--version=$php_version"
+
+  PhpSearchByFileName --search="php-config" $php_version
+
+  return $?
+}
+
+#======================================================================
+# Displays paths to mods-available.
+#
+# USAGE:
+#   GetPhpModsAvailablePath [-version=number]
+#
+# ARGUMENTS:
+#   -version
+#     Version number. For example: 5, 7
+#
+# RETURNS:
+#   Returns 0 (true) if mods-available found; otherwise 1 (false).
+#======================================================================
+GetPhpModsAvailablePath()
+{
+  ParseArgs "$@"
+  local php_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  local php_result=()
+
+  SetIFS
+
+  local phpPath
+
+  sudo find  "/etc" "/opt" "/usr" \
+  -iname "mods-available" -type d \
+  -not -path "/etc/init/*" \
+  -not -path "/etc/init.d/*"  \
+  -not -path "/usr/src/*" \
+  -not -path "/usr/local/src/*" \
+  -not -path "/usr/lib/htan/*" \
+  -not -path "/usr/*tmp*" \
+  -not -path "/opt/src/*" \
+  -not -path "/opt/local/src/*" \
+  -not -path "/opt/*tmp*" \
+  -print0 2> /dev/null | \
+  while read -r -d $'\0' phpPath; do
+
+    # is php path or not
+    if [[ -n "${phpPath##*php*}" ]]; then
+      # skip
+      continue
+    fi
+
+    # check php version
+    if [[ -n "$php_version" && -n "${phpPath##*$php_version*}" ]]; then
+      # skip
+      continue
+    fi
+
+    if [[ ! " ${php_result[@]} " =~ " $phpPath " ]]; then
+      printf "%s\n" "$phpPath"
+      php_result+=("$phpPath")
+    fi
+  done
+
+  ResetIFS
+
+  if ((${#php_result[@]} > 0)); then
+    return 0
+  else
+    return 1
+  fi
+}
+
+#======================================================================
+# Checks the specified PHP version is installed or not.
+#
+# USAGE:
+#   PhpExists [version]
+#
+# ARGUMENTS:
+#   -version | -v | $1
+#     The version of PHP.
+#
+# RETURNS:
+#   Returns 0 (true) if the PHP is installed; otherwise 1 (false).
+#======================================================================
+PhpExists()
+{
+  ParseArgs "$@"
+  local pe_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+
+  # Debug "PhpExists %s" "$pe_version"
+
+  if [[ -n "$pe_version" ]]; then
+    if echo "$(GetAllInstalledPhpVersions)" | grep -q -P "\b$pe_version"; then
+      return 0
+    else
+      return 1
+    fi
+  else
+    if GetAllInstalledPhpVersions >> /dev/null 2>&1; then
+      return 0
+    else
+      return 1
+    fi
+  fi
+}
+
+#======================================================================
+# Displays all listens of the php-fpm.
+#
+# USAGE:
+#   GetPhpFpmListen [-version=number]
+#
+# ARGUMENTS:
+#   -version
+#     Version number. For example: 5, 5.6, 7, 7.0.5
+#
+# RETURNS:
+#   Returns 0 (true) if listens found; otherwise 1 (false).
+#======================================================================
+GetPhpFpmListen()
+{
+  ParseArgs "$@"
+  local php_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  local php_result=()
+  local phpPath phpFpmConfFolder phpListen
+  local phpFpmConfFolderPath phpFpmConfFileName
+
+  IncludeTool config > /dev/null 2>&1
+
+  SetIFS
+
+  # search all php-fpm.conf
+  sudo find "/etc" "/opt" "/usr" "/bin" "/sbin" \
+       -iname "php*fpm.conf" -type f \
+       -not -path "/etc/init/*" \
+       -not -path "/etc/init.d/*"  \
+       -not -path "/usr/src/*" \
+       -not -path "/usr/local/src/*" \
+       -not -path "/usr/lib/htan/*" \
+       -not -path "/usr/*tmp*" \
+       -not -path "/opt/src/*" \
+       -not -path "/opt/local/src/*" \
+       -not -path "/opt/*tmp*" \
+       -print0 2> /dev/null | \
+  while read -r -d $'\0' phpPath; do
+    # extract config path
+    phpFpmConfFolder="$(INI_GetValue "$phpPath" "global" "include")"
+
+    if [[ -z "$phpFpmConfFolder" ]]; then
+      continue
+    fi
+
+    # check php version
+    if [[ -n "$php_version" && -n "${phpPath##*$php_version*}" ]]; then
+      # skip
+      continue
+    fi
+
+    if [[ "$phpFpmConfFolder" =~ "*" ]]; then
+      phpFpmConfFolderPath="$(dirname $phpFpmConfFolder)"
+      phpFpmConfFileName="${phpFpmConfFolder##*/}"
+    else
+      phpFpmConfFolderPath="$phpFpmConfFolder"
+      phpFpmConfFileName="*"
+    fi
+
+    SetIFS
+
+    # parse configs
+    sudo find "$phpFpmConfFolderPath" -name "$phpFpmConfFileName" -type f -print0 2> /dev/null | \
+    while read -r -d $'\0' phpFpmConf; do
+      if [[ -z "$phpFpmConf" ]]; then
+        continue
+      fi
+
+      # get listen
+      phpListen="$(INI_GetValue "$phpFpmConf" "www" "listen")"
+
+      if [[ -z "$phpListen" ]]; then
+        continue
+      fi
+
+      if [[ ! " ${php_result[@]} " =~ " $phpListen " ]]; then
+        printf "%s\n" "$phpListen"
+        php_result+=("$phpListen")
+      fi
+    done
+
+    ResetIFS
+  done
+
+  ResetIFS
+
+  if ((${#php_result[@]} > 0)); then
+    return 0
+  else
+    return 1
+  fi
+}
+
+#======================================================================
+# Displays all path to the php.ini files.
+#
+# USAGE:
+#   GetPhpIniPath [-version=number]
+#
+# ARGUMENTS:
+#   -version
+#     Version number. For example: 5, 7, 7.0.6
+#
+# RETURNS:
+#   Returns 0 (true) if files found; otherwise 1 (false).
+#======================================================================
+GetPhpIniPath()
+{
+  ParseArgs "$@"
+  local php_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  local php_result=()
+  local phpPath
+
+  SetIFS
+
+  sudo find "/etc" "/opt" "/usr" \
+       -iname "php*.ini" -type f \
+       -not -path "/etc/init/*" \
+       -not -path "/etc/init.d/*"  \
+       -not -path "/usr/src/*" \
+       -not -path "/usr/local/src/*" \
+       -not -path "/usr/lib/htan/*" \
+       -not -path "/usr/*tmp*" \
+       -not -path "/opt/src/*" \
+       -not -path "/opt/local/src/*" \
+       -not -path "/opt/*tmp*" \
+       -print0 2> /dev/null | \
+  while read -r -d $'\0' phpPath; do
+    # check php version
+    if [[ -n "$php_version" && -n "${phpPath##*$php_version*}" ]]; then
+      # skip
+      continue
+    fi
+
+    if [[ ! " ${php_result[@]} " =~ " $phpPath " ]]; then
+      printf "%s\n" "$phpPath"
+      php_result+=("$phpPath")
+    fi
+  done
+
+  ResetIFS
+
+  if ((${#php_result[@]} > 0)); then
+    return 0
+  else
+    return 1
+  fi
+}
+
+PhpParseVersion()
+{
+  sudo $1 --version 2> /dev/null | grep "^PHP*" | sed -r "s/^PHP\s+([0-9\.]+)(-[^\s]+|)\s+.*/\1/" 2> /dev/null
+}
+
+PhpSearchAllPaths()
+{
+  ParseArgs "$@"
+  local s_php_filter="${HTAN_PARSE_ARGS_RESULT[filter]:-${HTAN_PARSE_ARGS_RESULT[f]}}"
+  local s_php_exclude="${HTAN_PARSE_ARGS_RESULT[exclude]:-${HTAN_PARSE_ARGS_RESULT[x]:-false}}"
+
+  if [[ -n "$s_php_filter" ]]; then
+    local s_php_filter_arr=()
+    SetIFS ','
+    read -r -a s_php_filter_arr <<< "${s_php_filter}"
+    s_php_filter=("${s_php_filter_arr[@]}")
+    unset s_php_filter_arr
+    ResetIFS
+  fi
+
+  SetIFS ' '
+
+  local s_php_include_paths=("/etc" "/opt" "/usr" "/bin" "/sbin")
+  local s_php_inclde_names=("php*")
+  local s_php_exclude_paths=(\
+    "/etc/init/*" "/etc/init.d/*" 
+    "/usr/src/*" "/usr/local/src/*" "/usr/lib/htan/*" 
+    "/opt/src/*" "/opt/local/src/*"
+  )
+  local s_php_exclude_names=("phpquery" "phpenmod" "*reopenlogs" "*checkconf")
+  local s_php_inclde_names_cmp=() s_php_exclude_paths_cmp=() s_php_exclude_names_cmp=()
+  local i
+
+  if [[ -n "$s_php_filter" ]]; then
+    if [[ "$s_php_exclude" == true ]]; then
+      s_php_exclude_names+=("${s_php_filter[@]}")
+      s_php_exclude_paths+=("${s_php_filter[@]}")
+    else
+      s_php_inclde_names+=("${s_php_filter[@]}")
+      # s_php_include_paths+=("${s_php_filter[@]}")
+    fi
+  fi
+
+  for ((i=0; i<${#s_php_inclde_names[@]}; i++)); do
+    s_php_inclde_names_cmp+=(-iname "${s_php_inclde_names[$i]}")
+  done
+
+  for ((i=0; i<${#s_php_exclude_names[@]}; i++)); do
+    s_php_exclude_names_cmp+=(-not -iname "${s_php_exclude_names[$i]}")
+  done
+
+  for ((i=0; i<${#s_php_exclude_paths[@]}; i++)); do
+    s_php_exclude_paths_cmp+=(-not -path "${s_php_exclude_paths[$i]}")
+  done
+
+  sudo find "${s_php_include_paths[@]}" \
+  -type f -perm /111 \
+  "${s_php_inclde_names_cmp[@]}" \
+  "${s_php_exclude_names_cmp[@]}" \
+  "${s_php_exclude_paths_cmp[@]}" \
+  -print 2> /dev/null
+
+  ResetIFS
+}
+
+PhpSearchByFileName()
+{
+  ParseArgs "$@"
+  local php_search="${HTAN_PARSE_ARGS_RESULT[search]:-${HTAN_PARSE_ARGS_RESULT[s]:-${HTAN_PARSE_ARGS_RESULT_DEF}}}"
+  local php_version="${HTAN_PARSE_ARGS_RESULT[version]:-${HTAN_PARSE_ARGS_RESULT[v]}}"
+  local php_result=()
+
+  if [[ -z "$php_search" ]]; then
+    Error "Search string is required. Value cannot be empty."
+  fi
+
+  local phpSearchPaths=("/usr/bin/$php_search" "/usr/sbin/$php_search" "/bin/$php_search" "/sbin/$php_search")
+  local currentPath
+
+  # method #1
+  for currentPath in ${phpSearchPaths[@]}; do
+    if [[ -z "$php_version" ]]; then
+      # any version
+      if [[ -f "$currentPath" ]]; then
+        if [[ ! " ${php_result[@]} " =~ " $currentPath " ]]; then
+          printf "%s\n" "$currentPath"
+          php_result+=("$currentPath")
+        fi
+      fi
+    else
+      # add version to path
+      if [[ -f "$currentPath$php_version" ]]; then
+        if [[ ! " ${php_result[@]} " =~ " $currentPath$php_version " ]]; then
+          printf "%s\n" "$currentPath$php_version"
+          php_result+=("$currentPath$php_version")
+        fi
+      elif [[ -f "$currentPath-$php_version" ]]; then
+        if [[ ! " ${php_result[@]} " =~ " $currentPath-$php_version " ]]; then
+          printf "%s\n" "$currentPath-$php_version"
+          php_result+=("$currentPath-$php_version")
+        fi
+      fi
+
+      # part of version number
+      local php_part_version=""
+      local i
+
+      if (( ${#php_version} > 1 && ${#php_result[@]} == 0 )); then
+        for (( i=0; i<${#php_version}; i++ )); do
+          if [[ "${php_version:$i:1}" == "." ]]; then
+            # check path
+            if [[ -f "$currentPath$php_part_version" ]]; then
+              if [[ ! " ${php_result[@]} " =~ " $currentPath$php_part_version " ]]; then
+                printf "%s\n" "$currentPath$php_part_version"
+                php_result+=("$currentPath$php_part_version")
+              fi
+            elif [[ -f "$currentPath-$php_part_version" ]]; then
+              if [[ ! " ${php_result[@]} " =~ " $currentPath-$php_part_version " ]]; then
+                printf "%s\n" "$currentPath-$php_part_version"
+                php_result+=("$currentPath-$php_part_version")
+              fi
+            fi
+          fi
+
+          php_part_version+="${php_version:$i:1}"
+        done
+      fi
+    fi
+  done
+
+  SetIFS
+
+  # method #2
+  sudo find "/etc" "/opt" "/usr" "/bin" "/sbin" \
+       -iname "$php_search*" -type f -perm /111 \
+       -not -path "/etc/init/*" \
+       -not -path "/etc/init.d/*"  \
+       -not -path "/usr/src/*" \
+       -not -path "/usr/local/src/*" \
+       -not -path "/usr/lib/htan/*" \
+       -not -path "/opt/src/*" \
+       -not -path "/opt/local/src/*" \
+       -print0 2> /dev/null | \
+  while read -r -d $'\0' phpPath; do
+    # check version
+    if [[ -n "$php_version" && -n "${phpPath##*$php_version*}" ]]; then
+      # skip
+      continue
+    fi
+
+    if [[ " ${php_result[@]} " =~ " $phpPath " ]]; then
+      # exists, skip
+      continue
+    fi
+
+    php_result+=("$phpPath")
+
+    # output
+    printf "%s\n" "$phpPath"
+  done
+
+  ResetIFS
+
+  if ((${#php_result[@]} > 0)); then
+    return 0
+  else
+    return 1
+  fi
+}
+
+#----------------------------------------------------------------------
+# Self-script
+#----------------------------------------------------------------------
+if [[ "${0##*/}" == "php" ]]; then
+  ParseArgs "$@"
+
+  if [[ -n "${HTAN_PARSE_ARGS_RESULT[all-versions]}" || -n "${HTAN_PARSE_ARGS_RESULT[all]}" ]]; then
+    unset HTAN_PARSE_ARGS_RESULT[all-versions]
+    unset HTAN_PARSE_ARGS_RESULT[all]
+    GetAllInstalledPhpVersions
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[get]}" != "true" ]]; then
+      GetPhp --version="${HTAN_PARSE_ARGS_RESULT[get]}"
+    else
+      GetPhp
+    fi
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get-fpm]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[get-fpm]}" != "true" ]]; then
+      GetPhpFpm --version="${HTAN_PARSE_ARGS_RESULT[get-fpm]}"
+    else
+      GetPhpFpm
+    fi
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get-fpm-listen]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[get-fpm-listen]}" != "true" ]]; then
+      GetPhpFpmListen --version="${HTAN_PARSE_ARGS_RESULT[get-fpm-listen]}"
+    else
+      GetPhpFpmListen
+    fi
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get-phpize]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[get-phpize]}" != "true" ]]; then
+      GetPhpize --version="${HTAN_PARSE_ARGS_RESULT[get-phpize]}"
+    else
+      GetPhpize
+    fi
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get-config]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[get-config]}" != "true" ]]; then
+      GetPhpConfig --version="${HTAN_PARSE_ARGS_RESULT[get-config]}"
+    else
+      GetPhpConfig
+    fi
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get-mods-available]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[get-mods-available]}" != "true" ]]; then
+      GetPhpModsAvailablePath --version="${HTAN_PARSE_ARGS_RESULT[get-mods-available]}"
+    else
+      GetPhpModsAvailablePath
+    fi
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get-mods]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[get-mods]}" != "true" ]]; then
+      GetPhpModsAvailablePath --version="${HTAN_PARSE_ARGS_RESULT[get-mods]}"
+    else
+      GetPhpModsAvailablePath
+    fi
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get-ini]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[get-ini]}" != "true" ]]; then
+      GetPhpIniPath --version="${HTAN_PARSE_ARGS_RESULT[get-ini]}"
+    else
+      GetPhpIniPath
+    fi
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[exists]}" ]]; then
+    if [[ "${HTAN_PARSE_ARGS_RESULT[exists]}" != "true" ]]; then
+      PhpExists --version="${HTAN_PARSE_ARGS_RESULT[exists]}"
+    else
+      PhpExists
+    fi
+  fi
+
+  exit $?
+fi

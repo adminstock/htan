@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,10 +26,10 @@
 #   26.09.2015
 #
 # REVISION:
-#   15.10.2015
+#   25.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -68,17 +68,17 @@ IncludeTool package service config
 
 ConfigAddUser()
 {
-  Line =
-  # # Конфигурация команды %s.
-  Message "$(gettext "# Configuring %s.")" "adduser" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Configuring %s.")" "adduser" -s="$DEF_STYLE_HEADER"
+    Line =
 
-  # Команда adduser предназначена для добавления новых пользователей.\nДанный скрипт сформирует в /etc/skel оптимальный для веб-хостинга шаблон каталогов и файлов для новых пользователей.\nКаждый новый пользователь будет по умолчанию помещен в группу www-data.\nДля всех создаваемых пользователями каталогов будут выставлены разрешения 755.\nВсем новым пользователям, в целях безопасности, по умолчанию будет запрещен доступ через shell.
-  Message "$(gettext "adduser creates a new user or sets the default information for new users.\nThis script creates the optimal for web hosting template directories and files for new users.\nEach new user will be member of the group www-data.\nAll new users, for security reasons, the default will be denied access through the shell.")"
-  Line
+    Message "$(gettext "adduser creates a new user or sets the default information for new users.\nThis script creates the optimal for web hosting template directories and files for new users.\nEach new user will be member of the group www-data.\nAll new users, for security reasons, the default will be denied access through the shell.")"
+    Line
+  fi
 
   local manual=false
-  # Хотите продолжить?
+
   if ! Confirm "$(gettext "Do you want to continue?")" -yes; then
     manual=true
     Line
@@ -94,12 +94,10 @@ ConfigAddUser()
   # custom shell
   while $manual; do
     local new_dshell="$dshell"
-    # Введите shell по умолчанию:
     Message "$(gettext "Enter the default shell:")" -s="$DEF_STYLE_ENTER"
     Read -e -i "$new_dshell" new_dshell
 
     if [[ -z "$new_dshell" ]]; then
-      # Значение не может быть пустым.
       Message "$(gettext "Value cannot be empty.")" -s="$DEF_STYLE_ERROR"
     else
       dshell="$new_dshell"
@@ -110,32 +108,24 @@ ConfigAddUser()
 
   # custom skel folder
   if $manual; then
-    # По умолчанию, базовые настройки для вновь создаваемых пользователей находятся в папке %s.
     Message "$(gettext "By default, the basic settings for the newly created users are in the folder %s.")" "$skel"
-    # Хотите использовать эту папку?
     if ! Confirm "$(gettext "Do you want to use this folder?")" -yes; then
       while true; do
         local new_skel="$skel"
-        # Введите путь к папке SKEL:
         Message "$(gettext "Enter the path to the folder SKEL:")" -s="$DEF_STYLE_ENTER"
         Read -e -i "$new_skel" new_skel
 
         if [[ -z "$new_skel" ]]; then
-          # Необходимо указать путь к папке SKEL!
           Message "$(gettext "You must specify the path to the folder SKEL!")" -s="$DEF_STYLE_ERROR"
-          # Может лучше использовать %s?
           if Confirm "$(gettext "Maybe better to use %s?")" "$skel" -yes; then
             break
           fi
         elif [[ ! -d "$new_skel" ]]; then
-          # Папка %s не найдена.
           Message "$(gettext "The folder %s was not found.")" "$new_skel"
-          # Хотите создать папку %s?
           if Confirm "$(gettext "Do you want to create a folder %s?")" "$new_skel" -yes; then
             {
               (sudo mkdir "$new_skel" 2> /dev/null) && (skel="$new_skel"; break)
             } || {
-              # Не удалось создать каталог %s.
               Message "$(gettext "Unable to create directory %s.")" "$new_skel" -s="$DEF_STYLE_ERROR"
             }
           fi
@@ -159,14 +149,12 @@ ConfigAddUser()
   local create_dir=true
 
   if $manual; then
-    # Содержимое каталога %s будет автоматически копироваться в папку пользователя при добавлении пользователя (adduser).
     Message "$(gettext "Files and folders of %s will be automatically copied to the home user folder when adding a user (adduser).")" "$skel"
   fi
 
   for sdir in ${skel_dir[@]}; do
     if [[ ! -d "$skel/$sdir" ]]; then
       if $manual; then
-        # Хотите добавить в каталог %s папку %s?
         if ! Confirm "$(gettext "Would you like add to the directory %s the folder %s?")" "$skel" "$sdir" -yes; then
           create_dir=false
         fi
@@ -181,14 +169,12 @@ ConfigAddUser()
 
   # custome folders
   while $manual; do
-    # Хотите добавить новую папку?
     if ! Confirm "$(gettext "Do you want to add a new folder?")" -no; then
       Line
       break
     fi
 
     local new_folder="$skel/"
-    # Введите путь к папке:
     Message "$(gettext "Enter the path to the folder:")" -s="$DEF_STYLE_ENTER"
     Read -e -i "$new_folder" new_folder
 
@@ -196,10 +182,8 @@ ConfigAddUser()
       Message "$(gettext "Value cannot be empty.")" -s="$DEF_STYLE_ERROR"
     elif [[ ! -d "$new_folder" ]]; then
       {
-        # Создана новая папка %s.
         (sudo mkdir "$new_folder" 2> /dev/null) && (Message "$(gettext "Created a new folder %s.")" "$new_folder" -s="$DEF_STYLE_SUCCESS")
       } || {
-        # Не удалось создать каталог %s.
         Message "$(gettext "Unable to create directory %s.")" "$new_folder" -s="$DEF_STYLE_ERROR"
       }
     fi
@@ -208,7 +192,6 @@ ConfigAddUser()
   # default group
   while $manual; do
     local new_group="$default_group"
-    # Укажите название группы, в которую будут автоматически помещаться создаваемые пользователи:
     Message "$(gettext "Enter the name of the group for a new users:")" -s="$DEF_STYLE_ENTER"
     Read -e -i "$new_group" new_group
 
@@ -220,7 +203,6 @@ ConfigAddUser()
         {
           (sudo groupadd "$new_group" 2> /dev/null) && (default_group="$new_group"; Line; break)
         } || {
-          # Не удалось создать группу $new_group. Проверьте имя группы и повторите попытку.
           Message "$(gettext "Failed to create the group %s. Check the name of the group and try again.")" "$new_group" -s="$DEF_STYLE_ERROR"
         }
       else
@@ -242,11 +224,9 @@ ConfigAddUser()
 
   # dir mode
   if $manual; then
-    # Укажите разрешения, которые должны иметь домашние каталоги новых пользователей.
     Message "$(gettext "Set permissions that should have home directories for new users.")"
     while true; do
       local new_dir_mode="$dir_mode"
-      # Введите код необходимых разрешений:
       Message "$(gettext "Enter the numeric code of permissions:")" -s="$DEF_STYLE_ENTER"
       Read -e -i "$new_dir_mode" new_dir_mode
       if [[ -z "$new_dir_mode" ]]; then
@@ -261,7 +241,6 @@ ConfigAddUser()
 
 
   if $manual; then
-    # Применение настроек.
     Message "$(gettext "Applying settings.")"
   fi
 

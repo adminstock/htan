@@ -13,20 +13,20 @@
 #             [--pack-version="Version number"]
 #           ]
 #
-#           [--exists="Package name"]
+#           [--installed="Package name"]
 #
 #           [--get-version="Package name" [--major]]
 #
 #           [--update] [--upgrade]
 #
 # NAME:
-#   HTAN Package Tool
+#   HTAN for Packages
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -36,16 +36,16 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.0
+#   1.1.0
 #
 # CREATED:
 #   21.09.2015
 #
 # REVISION:
-#   25.12.2015
+#   29.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -112,6 +112,7 @@ PackageInstall()
   local pack_inst_confirm="${HTAN_PARSE_ARGS_RESULT[confirm]:-true}"
   local pack_inst_root="${HTAN_PARSE_ARGS_RESULT[root]:-false}"
   local pack_inst_version="${HTAN_PARSE_ARGS_RESULT[version]}"
+  local pack_inst_without_recommends="${HTAN_PARSE_ARGS_RESULT[no-install-recommends]:-false}"
 
   if [[ "$pack_inst_version" == true ]]; then
     pack_inst_version=""
@@ -120,31 +121,26 @@ PackageInstall()
   Debug "PackageInstall name=$pack_inst_name title=$pack_inst_title confirm=$pack_inst_confirm root=$pack_inst_root"
 
   if [[ -z "$pack_inst_name" ]]; then
-    # Ошибка: Необходимо указать название пакета в первом параметре!
-    # You must specify the name of the package in the first parameter!
     Error "$(gettext "You must specify the name of the package in the first parameter!")"
   fi
 
-  # проверяем, может такой пакет уже установлен
-  if PackageExists "$pack_inst_name"; then
-    # Установка %s не требуется.
-    # Installing %s is not required
+  # check exists
+  if ! PackageExists "$pack_inst_name"; then
+    Message "$(gettext "Package %s not found.")" "$pack_inst_title" -s="$DEF_STYLE_ERROR"
+    return 1
+  fi
+
+  # check in installed packages
+  if PackageInstalled "$pack_inst_name"; then
     Message "$(gettext "Installing %s is not required")" "$pack_inst_title" -s="$DEF_STYLE_PACKAGE_COMP" -n
     OK
     return 0 # true
   else
-    # по умолчанию требуется установка
+    # default - need to install
     local need_install=true
 
-    # если при вызове функции не указан второй параметр,
-    # или указан и имеет значение true, спрашиваем разрешение
+    # get confirmation
     if [[ "$pack_inst_confirm" == true ]]; then
-      #if [[ ! -z "$4" ]]; then
-      #  Message "$4"
-      #fi
-
-      # Хотите установить $pack_inst_title?
-      # Do you want to install %s?
       if ! Confirm "$(gettext "Do you want to install %s?")" "$pack_inst_title" -yes; then
         need_install=false
       fi
@@ -152,26 +148,33 @@ PackageInstall()
       Line
     fi
 
-    # устанавливаем пакет, если разрешено
+    # install
     if $need_install; then
       # add version number
       if [[ -n "$pack_inst_version" ]]; then
         pack_inst_name="$pack_inst_name=$pack_inst_version"
       fi
+
       # create command
-      local c="export DEBIAN_FRONTEND=noninteractive; sudo -E apt-get -q -y install $pack_inst_name >> $HTAN_LOG 2>&1"
-      if [[ "$pack_inst_root" == true ]]; then
-        c="export DEBIAN_FRONTEND=noninteractive; su root -c 'apt-get -q -y install $pack_inst_name >> $HTAN_LOG 2>&1' >> $HTAN_LOG 2>&1"
+      local additional_args=""
+
+      if [[ "$pack_inst_without_recommends" == true ]]; then
+        additional_args="--no-install-recommends"
       fi
+
+      local c="export DEBIAN_FRONTEND=noninteractive; sudo -E apt-get --quiet --yes $additional_args install $pack_inst_name >> $HTAN_LOG 2>&1"
+
+      if [[ "$pack_inst_root" == true ]]; then
+        c="export DEBIAN_FRONTEND=noninteractive; su root -c 'apt-get --quiet --yes $additional_args install $pack_inst_name >> $HTAN_LOG 2>&1' >> $HTAN_LOG 2>&1"
+      fi
+
       # execute command
       Execute -c="$c" -m="$(gettext "Installing %s …")" -a="$pack_inst_title" -sp="$DEF_STYLE_PACKAGE_PROC" -sc="$DEF_STYLE_PACKAGE_COMP"
+
       # check result
       if [[ $? != 0 ]]; then
-        # Не удалось установить %s. Попробуйте выполнить операцию вручную.
         Message "$(gettext "Can not install %s. Please try to install manually.")" "$pack_inst_title" -s="$DEF_STYLE_ERROR"
-        # Для получения подробностей, ознакомьтесь с файлом журнала %s.
         Message "$(gettext "For details, see the log file: %s.")" "$HTAN_LOG" -s="$DEF_STYLE_ERROR"
-        # Последние записи из журнала:
         Message "$(gettext "Last log records:")" -s="$DEF_STYLE_ERROR"
         ShowLastLogRecords -s="$DEF_STYLE_ERROR"
         return 1
@@ -184,8 +187,6 @@ PackageInstall()
         return 0
       fi
     else
-      # Установка %s …
-      # Installing %s …
       Message "$(gettext "Installing %s …")" "$pack_inst_name" -s="$DEF_STYLE_PACKAGE" -n
       Cancelled
       return 1
@@ -197,7 +198,7 @@ PackageInstall()
 # Checks the specified package is installed or not.
 #
 # USAGE:
-#   PackageExists "Package name"
+#   PackageInstalled "Package name"
 #
 # ARGUMENTS:
 #   $1
@@ -206,7 +207,7 @@ PackageInstall()
 # RETURNS:
 #   Returns 0 (true) if the package is installed; otherwise 1 (false).
 #======================================================================
-PackageExists()
+PackageInstalled()
 {
   if [[ -z "$1" ]]; then
     Error "$(gettext "You must specify the name of the package in the first parameter!")"
@@ -215,15 +216,28 @@ PackageExists()
   # 2> - error messages
   # /dev/null - black hole
   return $(dpkg-query -s "$1" 2> /dev/null | grep -q "ok installed")
+}
 
-  #{
-  #  dpkg-query -s "$1" 2> /dev/null | grep -q "ok installed" && 
-  #  Message "%s is installed." "$1" -s="$DEF_STYLE_PACKAGE"
-  #  return 0
-  #} || {
-  #  Message "%s not installed." "$1" -s="$DEF_STYLE_PACKAGE"
-  #  return 1
-  #}
+#======================================================================
+# Checks the specified package exists or not.
+#
+# USAGE:
+#   PackageExists "Package name"
+#
+# ARGUMENTS:
+#   $1
+#     The name of package.
+#
+# RETURNS:
+#   Returns 0 (true) if the package is exists; otherwise 1 (false).
+#======================================================================
+PackageExists()
+{
+  if apt-cache show "$1" > /dev/null 2>&1; then
+    return 0
+  else
+    return 1
+  fi
 }
 
 #======================================================================
@@ -249,7 +263,12 @@ PackageVersion()
     Error "$(gettext "You must specify the name of the package in the first parameter!")"
   fi
 
-  local version=$(apt-cache show "$pv_name" | grep Version: | head -1 | sed -r "s/Version\:\s*(([0-9]+\:|)[0-9\.]+).*/\1/")
+  if ! PackageExists "$pv_name"; then
+    return 1
+  fi
+
+  # (([0-9]+\:|)[0-9\.]+)
+  local version=$(apt-cache show "$pv_name" | grep Version: | head -1 | sed -r "s/Version\:\s*([0-9]+\:|)([0-9\.]+).*/\2/")
 
   if [[ "$pv_major" == true ]]; then
     echo "${version%%[^0-9]*}"
@@ -275,10 +294,11 @@ PackageVersion()
 PackageUpdate()
 {
   local c="sudo apt-get update >> $HTAN_LOG 2>&1"
-  if ! PackageExists sudo; then
+
+  if ! PackageInstalled sudo; then
     c="su root -c 'apt-get update' >> $HTAN_LOG 2>&1"
   fi
-  # Обновление информации о пакетах …
+
   Execute -c="$c" -m="$(gettext "Updating the package cache …")" -sp="$DEF_STYLE_PACKAGE_PROC" -sc="$DEF_STYLE_PACKAGE_COMP"
 }
 
@@ -297,10 +317,11 @@ PackageUpdate()
 PackageUpgradeAll()
 {
   local c="sudo apt-get -y upgrade >> $HTAN_LOG 2>&1"
-  if ! PackageExists sudo; then
+
+  if ! PackageInstalled sudo; then
     c="su root -c 'apt-get -y upgrade' >> $HTAN_LOG 2>&1"
   fi
-  # Обновление пакетов …
+
   Execute -c="$c" -m="$(gettext "Updating packages …")" -sp="$DEF_STYLE_PACKAGE_PROC" -sc="$DEF_STYLE_PACKAGE_COMP"
 }
 
@@ -319,9 +340,9 @@ if [[ "${0##*/}" == "package" ]]; then
     HTAN_PARSE_ARGS_RESULT[name]="${HTAN_PARSE_ARGS_RESULT[install]}"
     unset HTAN_PARSE_ARGS_RESULT[install]
     PackageInstall
-  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[exists]}" ]]; then
+  elif [[ -n "${HTAN_PARSE_ARGS_RESULT[installed]}" ]]; then
     HTAN_ONE_SKIP_PARSE_ARGS=true
-    PackageExists "${HTAN_PARSE_ARGS_RESULT[exists]}"
+    PackageInstalled "${HTAN_PARSE_ARGS_RESULT[installed]}"
   elif [[ -n "${HTAN_PARSE_ARGS_RESULT[get-version]}" ]]; then
     HTAN_ONE_SKIP_PARSE_ARGS=false
     PackageVersion "${HTAN_PARSE_ARGS_RESULT[get-version]}" "${HTAN_PARSE_ARGS_RESULT[major]}"

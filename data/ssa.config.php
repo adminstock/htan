@@ -46,7 +46,7 @@ $config["svn_groupname_pattern"] = '^([A-Za-z]+)([A-Za-z0-9_.-]*)$';
 $config["svn_groupname_invalid_message"] = 'The name can contain letters of the English alphabet, numbers, hyphens and underscores. The name must start with a letter.';
 
 // web server
-$config['web_mode'] = 'nginx+apache'; // nginx+apache | nginx | apache
+$config['web_mode'] = '{web_mode}'; // nginx+apache | nginx | apache
 $config['web_apache_path'] = '/etc/apache2';
 $config['web_nginx_path'] = '/etc/nginx';
 $config['web_htan_enabled'] = {web_htan_enabled}; // true if htan-runner is installed; otherwise false
@@ -60,7 +60,7 @@ $config['dbadmin_list'] = [ {dbadmin_list} ];
 
 // client-side config
 $config['client'] = [
-  'WebServer' => 'nginx+apache',
+  'WebServer' => $config['web_mode'],
   'ApacheHost' => '{ApacheHost}',
   'ApachePort' => {ApachePort},
   'LogFolderName' => '.logs',

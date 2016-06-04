@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,7 +26,7 @@
 #   23.09.2015
 #
 # REVISION:
-#   19.04.2016
+#   25.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -68,9 +68,11 @@ IncludeTool package service config
 
 InstallNTP()
 {
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "NTP" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "NTP" -s="$DEF_STYLE_HEADER"
+    Line =
+  fi
 
   PackageInstall ntp -confirm=false
 
@@ -95,13 +97,10 @@ InstallNTP()
 
   Line
 
-  # Хотите провести тестирование?
-  if Confirm "$(gettext "Do you want to test?")" -no; then
+  if Confirm "$(gettext "Do you want to test?")" -no -timeout=15; then
     Line
-    # Тестирование может занять длительное время.\nЕсли вы захотите прервать тестирование, нажмите клавишу Q.
     Message "$(gettext "Testing can take a long time.\nIf you want to stop testing, press Q.")"
     Line
-    # Тестирование NTP …
     Message "$(gettext "Testing %s …")" "NTP" -n
 
     $(sudo ntpq -pn >> $HTAN_LOG 2>&1 | grep -q ^\+)
@@ -143,7 +142,6 @@ InstallNTP()
     Unblock
 
     # Line
-    # Проверка завершена.
     # Message "$(gettext "Testing completed.")"
   fi
 
@@ -153,7 +151,7 @@ InstallNTP()
 
   Line
 
-  Message "$(gettext "Time synchronization …")" -n
+  Message "$(gettext "Time synchronization …")" -n -s="$DEF_STYLE_PACKAGE_COMP"
   local time_sync=false ntp_i
   for (( ntp_i=1; ntp_i<3; ntp_i++ )); do
     if sudo ntpdate -s "$ntp_i.pool.ntp.org"; then

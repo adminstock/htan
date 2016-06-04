@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, HTAN Tools
+#   Debian 7/8, sudo
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -26,10 +26,10 @@
 #   23.09.2015
 #
 # REVISION:
-#   15.10.2015
+#   28.05.2016
 #
 # COPYRIGHT:
-#   © Aleksey Nemiro, 2015. All rights reserved.
+#   © Aleksey Nemiro, 2015-2016. All rights reserved.
 #
 # LICENSE:
 #   Apache License Version 2.0
@@ -75,22 +75,22 @@ InstallXinetd()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "xinetd" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "xinetd" -s="$DEF_STYLE_HEADER"
+    Line =
+  fi
 
-  if PackageExists inetd; then
-    # На сервере обнаружена устаревшая служба inetd.\n
-    # Рекомендуется заменить её на xinetd.
+  if PackageInstalled inetd; then
     Message "$(gettext "On this server detected service inetd.\nIt is recommended to replace it with a new service - xinetd.")"
   else
-    if ! PackageExists xinetd; then
-      # Служба xinetd необходима для управления сетевыми соединениями и контроля доступа.
-      Message "$(gettext "Xinetd service is needed to manage the network connections and access control.")"
-      Line
+    if ! PackageInstalled xinetd; then
+      if ! $HTAN_NOHEADERS; then
+        Message "$(gettext "Xinetd service is needed to manage the network connections and access control.")"
+        Line
+      fi
       PackageInstall xinetd -confirm=false -title="eXtended InterNET Daemon (xinetd)" $tested
     else
-      # Служба xinetd уже установлена. Дополнительные действия не требуются.
       Message "$(gettext "Xinetd service is already installed. Additional action is not required.")"
     fi
   fi

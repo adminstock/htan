@@ -6,7 +6,7 @@ service ftp
   socket_type = stream
   wait = no
   user = root
-  server = /usr/sbin/vsftpd
+  server = {server}
   nice = 10
   only_from = 0.0.0.0/0 # allows every client
   bind = {ip} # public IP address for this server 

@@ -10,7 +10,7 @@
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 8, sudo, xinetd, HTAN Tools
+#   Debian 8, sudo, xinetd
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -20,13 +20,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.2
+#   1.0.3
 #
 # CREATED:
 #   16.09.2015
 #
 # REVISION:
-#   17.04.2016
+#   28.05.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -75,70 +75,88 @@ InstallVsftpd()
   fi
   # // --
 
-  Line =
-  Message "$(gettext "# Installing and configuring %s.")" "FTP Server" -s="$DEF_STYLE_HEADER"
-  Line =
+  if ! $HTAN_NOHEADERS; then
+    Line =
+    Message "$(gettext "# Installing and configuring %s.")" "FTP Server" -s="$DEF_STYLE_HEADER"
+    Line =
+  fi
 
-  local vsftp_exists=$(PackageExists vsftpd && echo true || echo false)
+  local vsftp_exists=$(PackageInstalled vsftpd && echo true || echo false)
 
   if [[ $vsftp_exists == true ]]; then
-    # На сервере обнаружен Very Secure FTP Daemon (vsftpd).
     Message "$(gettext "On this server is detected Very Secure FTP Daemon (vsftpd).")"
-    # Рекомендуется провести настройку сервера FTP.
     Message "$(gettext "It is recommended to configure the server FTP.")"
     Line
-    # Хотите провести конфигурацию (файл настроек будет перезаписан)?
     if ! Confirm "$(gettext "Would you like to configure? (the current settings will be overwritten)")" -yes; then
-      # Операция прервана пользователем.
+      Line
       Message "$(gettext "Operation canceled by the user.")"
       return
     fi
     Line
   fi
 
-  # add the source of packages, if needed
-  if ! $(grep -q http://ftp.us.debian.org/debian /etc/apt/sources.list); then
-    if [[ "${SYS_OS_VERSION:0:1}" == '7' ]]; then
-      # todo
-      Message "Skip for Debian 7"
+  # check xinetd
+  if ! PackageInstalled xinetd; then
+    if Confirm "$(gettext "For operation %s on the server must be installed %s. Do you want to install %s?")" -a="vsftpd" -a="xinetd" -a="xinetd" -yes; then
+      Line
+      RunInstaller xinetd -confirmed -noheaders -noincmsg
+      Line
     else
-      sudo echo "deb http://ftp.us.debian.org/debian jessie main contrib" >> /etc/apt/sources.list
-      # sudo apt-get update
-      PackageUpdate
-    fi
-    Line
-  fi
-
-  if [[ $vsftp_exists != true ]]; then
-    # check the vsftpd version on packages server
-    local version=$(PackageVersion vsftpd true)
-
-    if false; then # disabled
-      if (( $version < 3 )); then
-        # ВНИМАНИЕ: Версия vsftpd $version может быть устаревшей.\n
-        # Рекомендуется использовать программу не ниже версии 3.0.2, дабы избежать проблем с доступом к FTP.
-        Message "$(gettext "WARNING: The version %s of the vsftpd might be outdated.\nRecommended to use the version not lower than 3.0.2.")" "$version" "$DEF_STYLE_WARNING"
-        Line
-        # Нажмите Y, чтобы попробовать установить версию %s.\n
-        # Для отмены установки, нажмите N.
-        Message "$(gettext "Press Y, to try to install version %s.\nTo cancel, press N.")" "$version" "$DEF_STYLE_QUESTION"
-        if ! Confirm -yes; then
-          Line
-          Message "$(gettext "Done.")"
-          return
-        fi
-        Line
-      fi
-    fi
-
-    if ! PackageInstall vsftpd -confirm=true -title="Very Secure FTP Daemon" $tested; then
+      Line
+      Message "$(gettext "Installation canceled by the user.")"
       return
     fi
   fi
 
-  Line
+  # check the vsftpd version on packages server
+  local version=$(PackageVersion vsftpd true)
+
+  if (( $version < 3 )); then
+    # add the source of packages, if needed
+    if [[ "$SYS_OS_NAME" == "Debian" ]]; then
+      if ! $(grep -q http://ftp.us.debian.org/debian /etc/apt/sources.list); then
+        if [[ "${SYS_OS_VERSION:0:1}" == '7' ]]; then
+          # todo
+          Message "Skip for Debian 7"
+        else
+          sudo echo "deb http://ftp.us.debian.org/debian jessie main contrib" >> /etc/apt/sources.list
+          # sudo apt-get update
+          PackageUpdate
+          # check the vsftpd version again
+          version=$(PackageVersion vsftpd true)
+        fi
+        Line
+      fi
+    fi
+  fi
+
+  if [[ $vsftp_exists != true ]]; then
+    if (( $version < 3 )); then
+      Line
+      Message "$(gettext "WARNING: The version %s of the vsftpd might be outdated.\nRecommended to use the version not lower than 3.0.2.")" "$version" "$DEF_STYLE_WARNING"
+      Line
+      Message "$(gettext "Press Y, to try to install version %s.\nTo cancel, press N.")" "$version" "$DEF_STYLE_QUESTION"
+
+      if ! Confirm -yes; then
+        Line
+        Message "$(gettext "Operation canceled by the user.")"
+        return
+      fi
+
+      Line
+    fi
+
+    if ! PackageInstall vsftpd -confirm="$(NeedUserConfirmationToInstall true)" -title="Very Secure FTP Daemon" $tested; then
+      return
+    fi
+
+    vsftp_exists=true
+
+    Line
+  fi
 
   ServiceStop vsftpd
+  Line
 
   # config file path
   local config=/etc/vsftpd.conf
@@ -147,23 +165,16 @@ InstallVsftpd()
   local ftpd_banner xferlog_enable listen_ipv6
   local pasv_enable port_enable
 
-  Line
-
-  # При подключении к FTP серверу можно вывести в клиент пользователя текст приветствия.\n
-  # Текст приветствия - небольшое сообщение или фраза.\n
-  # Например, текст может быть следующим: Welcome to my FTP!
   Message "$(gettext "When users connect to the FTP server to the client can display a welcoming message. For example: Welcome to my FTP!")"
   Line
-  # Хотите ввести текст приветствия?
+
   if Confirm "$(gettext "Do you want to enter a welcoming message?")" -no; then
-    # Введите строку приветствия. Используйте только английские буквы:
     Message "$(gettext "Enter the welcoming message. Use only English letters:")"
     Read ftpd_banner
   fi
 
   Line
 
-  # Хотите вести учет подключений к серверу FTP?
   if Confirm "$(gettext "Do you want to to log connections to the server FTP?")" -yes; then
     xferlog_enable="YES"
   else
@@ -173,7 +184,6 @@ InstallVsftpd()
 
   Line
 
-  # Разрешить использование IPv6?
   if Confirm "$(gettext "Do you want to allow IPv6?")" -no; then
     listen_ipv6="YES"
   else
@@ -182,22 +192,14 @@ InstallVsftpd()
 
   Line
 
-  # FTP-сервер может работать в пассивном и/или активном режиме.\n
-  # Активный режим безопаснее для сервера.\n
-  # Пассивный режим безопаснее для клиента.\n
-  # Рекомендуется включить оба режима.
   Message "$(gettext "FTP-server can operate in passive and/or active mode.\nActive mode for the server more secure.\nPassive mode is more secure for users and can be most preferred.\nRecommended to enable both modes.")"
 
   Line
 
   # passive mode
-  # Разрешить пассивный режим?
   if Confirm "$(gettext "Allow passive mode?")" -yes; then
     pasv_enable="YES"
-
     Line
-    # Для работы пассивного режима будут использоваться порты от %s до %s.\n
-    # Если этого будет не хватать, можно расширить диапазон в файле %s.
     Message "$(gettext "For the passive mode will be used port numbers range from %s to %s.\nYou can change this in the configuration file: %s.")" "40 000" "40 500" "$config"
   else
     SetValue2 $config pasv_enable NO
@@ -209,7 +211,6 @@ InstallVsftpd()
   if [[ "$pasv_enable" == "NO" ]]; then
     port_enable="YES"
   else
-    # Разрешить активный режим?
     if Confirm "$(gettext "Allow active mode?")" -yes; then
       port_enable="YES"
     else
@@ -245,7 +246,6 @@ InstallVsftpd()
   # write permission
   SetValue2 $config write_enable YES
 
-  # сообщения при смене директории
   # messages when changing directories
   SetValue2 $config dirmessage_enable YES
 
@@ -258,11 +258,9 @@ InstallVsftpd()
     SetValue2 $config xferlog_file /var/log/vsftpd.log
   fi
 
-  # запрет регистрации всех соединений (для экономии)
   # prohibition of the registration of all connections (to save space)
   SetValue2 $config log_ftp_protocol NO
 
-  # соединения через порт 20 (в дополнение к 21)
   # allow connections through port number 20
   SetValue2 $config connect_from_port_20 YES
 
@@ -315,7 +313,6 @@ InstallVsftpd()
   SetValue2 $config use_localtime YES
 
   # ftp access for users without shell
-  # Разрешение доступа к FTP без shell …
   Message "$(gettext "Allowing access to the FTP without shell …")" -n
   if ! $(grep -q "^/bin/false$" "/etc/shells"); then
     $(echo /bin/false | sudo tee -a /etc/shells > /dev/null) && OK || Fail
@@ -326,18 +323,16 @@ InstallVsftpd()
   Line
 
   # config xinetd
-  # Создание xinetd для vsftpd …
   Execute "sudo cp $HTAN_PATH_DATA/xinetd.d/vsftpd /etc/xinetd.d/vsftpd 2> /dev/null; wait" -m="$(gettext "Configuring xinetd for vsftpd …")"
   # todo: need to modify the logic
   if [[ -f /etc/xinetd.d/vsftpd ]]; then 
     if [[ -z "$HTAN_SERVER_IP" ]]; then
       GetServerIP
     fi
-    # Message "Добавление адреса $HTAN_SERVER_IP ..." -n
-    # Execute 'sudo sed -i "s/\{ip\}/$HTAN_SERVER_IP/" /etc/xinetd.d/vsftpd 2> /dev/null; wait'
+
     ReplaceMarker /etc/xinetd.d/vsftpd "ip" "$HTAN_SERVER_IP"
+    ReplaceMarker /etc/xinetd.d/vsftpd "server" "/usr/sbin/vsftpd"
   else
-    # Не удалось создать конфигурацию xinetd для vsftpd.
     Message "$(gettext "Failed to create the configuration of xinetd for vsftpd.")" -s="$DEF_STYLE_ERROR"
   fi
 
@@ -346,14 +341,11 @@ InstallVsftpd()
   Line
 
   # testing
-  # Рекомендуется провести тестирование FTP, путем проверки 21 порта.\n
-  # Процесс тестирования может занять несколько минут, пока не будет инициализирована конфигурация FTP-сервера в xinetd.
   Message "$(gettext "It is recommended to test the FTP.\nThe testing process can take several minutes.")"
   Line
-  # Хотите провести тестирование FTP?
-  if Confirm "$(gettext "Do you want to test FTP?")" -yes; then
+
+  if Confirm "$(gettext "Do you want to test FTP?")" -yes -timeout=15; then
     Line
-    # Тестирование FTP …
     Message "$(gettext "Testing %s …")" "FTP" -n
 
     # $(netstat -npl | grep -q :21\s*)

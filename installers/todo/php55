@@ -1,0 +1,219 @@
+#!/bin/bash
+
+#======================================================================
+# Performs installation and configuration of PHP 5.5.
+#
+# USAGE:
+#   php55 [--debug] [--version] [--help] [--nocolor] [--tested]
+#
+# PROJECT:
+#   Hosting tools by Aleksey Nemiro (HTAN)
+#
+# REQUIREMENTS:
+#   Debian 8, sudo, HTAN Tools
+#
+# AUTHOR:
+#   Aleksey Nemiro
+#   http://aleksey.nemiro.ru/
+#   https://github.com/alekseynemiro/
+#   <aleksey@nemiro.ru>
+#   <aleksey.nemiro@gmail.com>
+#
+# VERSION:
+#   1.0.0
+#
+# CREATED:
+#   15.04.2016
+#
+# REVISION:
+#   15.04.2016
+#
+# COPYRIGHT:
+#   © Aleksey Nemiro, 2016. All rights reserved.
+#
+# LICENSE:
+#   Apache License Version 2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# HTAN_NAME:
+#   PHP5
+#
+# HTAN_CATEGORY:
+#   Application Development
+#
+# HTAN_OPTIONAL:
+#   true
+#======================================================================
+
+# Including common
+if [[ -z "$HTAN_INCLUDED_TOOLS" ]]; then
+  {
+    if [[ "${0##*/}" != "php55" ]]; then
+      printf "Including the common …"
+    fi
+    if source "$(cd $(dirname $0) && pwd)/../tools/common"; then
+      if [[ "${0##*/}" != "php55" ]]; then
+        OK
+      fi
+    fi
+  } || {
+    echo ""
+    echo -e "\033[1;31m$(gettext "Failed to include the common.")\033[0m"
+    exit 1
+  }
+fi
+
+# Including tools
+IncludeTool package service config
+
+InstallPHP55()
+{
+  Line =
+  Message "$(gettext "# Installing and configuring %s.")" "PHP 5.5.34" -s="$DEF_STYLE_HEADER"
+  Line =
+
+  Message "TODO"
+
+  return 1
+
+  if [[ -d /opt/php-5.5.34 ]]; then
+    Message "$(gettext "On this server is already installed %s.")" "PHP 5.5.34"
+    return
+  fi
+
+  if ! Confirm "$(gettext "Do you want to install %s?")" "PHP 5.5.34" -yes; then
+    Message "$(gettext "Operation canceled by the user.")"
+    return
+  fi
+
+  Line
+
+  local command=""
+
+  if [[ ! -d /opt/php-5.5.34 ]]; then
+    command="mkdir -p /opt/php-5.5.34 >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Creating %s …")" -a="/opt/php-5.5.34" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  if [[ ! -d /usr/local/src/php5-build ]]; then
+    command="mkdir -p /usr/local/src/php5-build >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Creating %s …")" -a="/usr/local/src/php5-build" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+    Line
+  fi
+
+  if [[ -f /usr/local/src/php5-build/php-5.5.34.tar.bz2 ]]; then
+    command="rm /usr/local/src/php5-build/php-5.5.34.tar.bz2"
+    Execute -c="$command" -m="$(gettext "Removing %s …")" -a="/usr/local/src/php5-build/php-5.5.34.tar.bz2" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+    Line
+  fi
+
+  # download file
+  command="wget -O /usr/local/src/php5-build/php-5.5.34.tar.bz2  http://de1.php.net/distributions/php-5.5.34.tar.bz2 >> $HTAN_LOG 2>&1"
+  Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="PHP 5.5.34" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+  Line
+
+  # extract
+  command="cd /usr/local/src/php5-build; tar jxf php-5.5.34.tar.bz2 >> $HTAN_LOG 2>&1"
+  Execute -c="$command" -m="$(gettext "Extraction %s …")" -a="php-5.5.34.tar.bz2" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+  Line
+
+  PackageInstall "build-essential" -confirm=false
+  Line
+
+  command="export DEBIAN_FRONTEND=noninteractive; sudo -E apt-get -q -y build-dep php5 >> $HTAN_LOG 2>&1"
+  Execute -c="$command" -m="build-dep …" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+  Line
+
+  local to_install=(libfcgi-dev libfcgi0ldbl libmcrypt-dev libssl-dev libc-client2007e libc-client2007e-dev libssh2-php) # libjpeg62-dbg libssh2-1-dev
+  
+  for package in "${to_install[@]}"; do
+    PackageInstall "$package" -confirm=false
+    Line
+  done
+
+  # sudo pecl channel-update pecl.php.net
+  # sudo pecl install ssh2-0.12
+
+  if [[ -d /usr/lib/x86_64-linux-gnu ]]; then
+    command="ln -s /usr/lib/libc-client.a /usr/lib/x86_64-linux-gnu/libc-client.a >> $HTAN_LOG 2>&1"
+    Execute -c="$command" -m="$(gettext "Creating %s …")" -a="libc-client.a" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" # || return 1
+    Line
+  fi
+
+  local src_php5_build="/usr/local/src/php5-build"
+
+  if [[ ! -f "$src_php5_build/configure" ]]; then
+    src_php5_build="$src_php5_build/php-5.5.34"
+  fi
+
+  command="$src_php5_build/configure \
+  --prefix=/opt/php-5.5.34 \
+  --with-pdo-pgsql \
+  --with-zlib-dir \
+  --with-freetype-dir \
+  --enable-mbstring \
+  --with-libxml-dir=/usr \
+  --enable-soap \
+  --enable-calendar \
+  --with-curl \
+  --with-mcrypt \
+  --with-zlib \
+  --with-gd \
+  --with-pgsql \
+  --disable-rpath \
+  --enable-inline-optimization \
+  --with-bz2 \
+  --with-zlib \
+  --enable-sockets \
+  --enable-sysvsem \
+  --enable-sysvshm \
+  --enable-pcntl \
+  --enable-mbregex \
+  --with-mhash \
+  --enable-zip \
+  --with-pcre-regex \
+  --with-mysql \
+  --with-pdo-mysql \
+  --with-mysqli \
+  --with-jpeg-dir=/usr \
+  --with-png-dir=/usr \
+  --enable-gd-native-ttf \
+  --with-openssl \
+  --with-fpm-user=www-data \
+  --with-fpm-group=www-data \
+  --with-libdir=/lib/x86_64-linux-gnu \
+  --enable-ftp \
+  --with-kerberos \
+  --with-gettext \
+  --with-ssh2 \
+  --enable-fpm >> $HTAN_LOG 2>&1"
+  # --with-imap
+  # --with-imap-ssl
+
+  Execute -c="$command" -m="$(gettext "Preparing …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+  Line
+
+  Execute -c="cd $src_php5_build; make >> $HTAN_LOG 2>&1 && make install >> $HTAN_LOG 2>&1" -m="$(gettext "Installing %s …")" -a="PHP 5.5.34" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+  Line
+
+  command="cp $src_php5_build/php.ini-production /opt/php-5.5.34/lib/php.ini >> $HTAN_LOG 2>&1 && "
+  command+="cp /opt/php-5.5.34/etc/php-fpm.conf.default /opt/php-5.5.34/etc/php-fpm.conf >> $HTAN_LOG 2>&1"
+
+  Execute -c="$command" -m="$(gettext "Copying %s …")" -a="php.ini & php-fpm.conf" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+
+  # todo: config
+  # /opt/php-5.5.34/etc/php-fpm.conf
+  # include=/opt/php-5.5.34/etc/pool.d/*.conf
+  # mkdir /opt/php-5.5.34/etc/pool.d
+  # make service
+  # nano /etc/init.d/php-5.5.34-fpm
+  # chmod 755 /etc/init.d/php-5.5.34-fpm
+  # update-rc.d php-5.5.34-fpm defaults
+  # /etc/init.d/php-5.5.34-fpm start
+
+  Line
+  Message "$(gettext "Done.")"
+}
+
+InstallPHP55
