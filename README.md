@@ -46,8 +46,6 @@ git clone https://github.com/adminstock/htan.git /usr/lib/htan
 [[ -f /usr/sbin/htan ]] || ln -s /usr/lib/htan/run /usr/sbin/htan
 
 # set permissions
-[[ -f /sbin/htan ]] && chmod u=rwx /sbin/htan
-[[ -f /usr/sbin/htan ]] && chmod u=rwx /usr/sbin/htan
 chmod u=rwx /usr/lib/htan/run
 
 # run
@@ -71,8 +69,6 @@ sudo git clone https://github.com/adminstock/htan.git /usr/lib/htan
 [[ -f /usr/sbin/htan ]] || sudo ln -s /usr/lib/htan/run /usr/sbin/htan
 
 # set permissions
-[[ -f /sbin/htan ]] && sudo chmod u=rwx /sbin/htan
-[[ -f /usr/sbin/htan ]] && sudo chmod u=rwx /usr/sbin/htan
 sudo chmod u=rwx /usr/lib/htan/run
 
 # run
@@ -86,7 +82,8 @@ To update, run the following command:
 ```
 cd /usr/lib/htan/
 sudo git fetch origin && \
-sudo git reset --hard origin/[tag/branch/commit-id usually: master]
+sudo git reset --hard origin/master && \
+chmod u=rwx /usr/lib/htan/run
 ```
 
 or remove and reinstall:

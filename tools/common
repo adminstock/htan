@@ -2022,7 +2022,7 @@ if [[ ! -d "$(dirname "$HTAN_LOG")" ]]; then
 fi
 
 # server info only for "run"
-if [[ "${0##*/}" != "run" ]]; then
+if [[ "${0##*/}" != "run" && "${0##*/}" != "htan" ]]; then
   HTAN_SERVER_INFO=""
 fi
 

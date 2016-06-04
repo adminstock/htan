@@ -44,8 +44,6 @@ git clone https://github.com/adminstock/htan.git /usr/lib/htan
 [[ -f /usr/sbin/htan ]] || ln -s /usr/lib/htan/run /usr/sbin/htan
 
 # установка необходимых разрешений
-[[ -f /sbin/htan ]] && chmod u=rwx /sbin/htan
-[[ -f /usr/sbin/htan ]] && chmod u=rwx /usr/sbin/htan
 chmod u=rwx /usr/lib/htan/run
 
 # запуск htan
@@ -69,8 +67,6 @@ sudo git clone https://github.com/adminstock/htan.git /usr/lib/htan
 [[ -f /usr/sbin/htan ]] || sudo ln -s /usr/lib/htan/run /usr/sbin/htan
 
 # установка необходимых разрешений
-[[ -f /sbin/htan ]] && sudo chmod u=rwx /sbin/htan
-[[ -f /usr/sbin/htan ]] && sudo chmod u=rwx /usr/sbin/htan
 sudo chmod u=rwx /usr/lib/htan/run
 
 # запуск htan
@@ -86,7 +82,9 @@ sudo htan --lang=ru
 cd /usr/lib/htan/
 # получение обновлений
 sudo git fetch origin && \
-sudo git reset --hard origin/[tag/branch/commit-id usually: master]
+sudo git reset --hard origin/master
+# установка разрешений
+sudo chmod u=rwx /usr/lib/htan/run
 ```
 
 либо удалите **HTAN** и выполните установку заново:
