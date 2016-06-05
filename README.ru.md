@@ -118,7 +118,8 @@ _**ПРИМЕЧАНИЕ:** **Apache** на заднем плане, получа
 
 ### Application Development
 - PHP5
-- PHP7 (v7.0.6 из исходного кода)
+- PHP7 для Ubuntu 16+ (официальный пакет)
+- PHP v7.0.6 из исходного кода для Debian и Ubuntu
 - Mono ASP.NET
 
 ### Database

@@ -112,7 +112,8 @@ _**NOTE:** **Nginx** will forward requests to **Apache**._
 
 ### Application Development
 - PHP5
-- PHP7 (v7.0.6 from source code)
+- PHP7 for Ubuntu 16+ (official package)
+- PHP v7.0.6 from source code for Debian and Ubuntu
 - Mono ASP.NET
 
 ### Database
