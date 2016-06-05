@@ -63,7 +63,7 @@
 #   21.09.2015
 #
 # REVISION:
-#   04.06.2016
+#   05.06.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2015-2016. All rights reserved.
@@ -1960,7 +1960,7 @@ HTAN_LOG="${HTAN_PARSE_ARGS_RESULT[log]:-/var/log/htan/installer.log}" # $HTAN_P
 # file for server info
 HTAN_SERVER_INFO="${HTAN_PARSE_ARGS_RESULT[output-server-info]:-/root/server.info}"
 if [[ "$HTAN_SERVER_INFO" == "/root/server.info" && "$SYS_OS_NAME" == "Ubuntu" ]]; then
-  if [[ -n "$SUDO_USER" && -d "/home/$SUDO_USER/server.info" ]]; then
+  if [[ -n "$SUDO_USER" && -d "/home/$SUDO_USER" ]]; then
     HTAN_SERVER_INFO="/home/$SUDO_USER/server.info"
   else
     HTAN_SERVER_INFO="/var/log/htan/server.info"

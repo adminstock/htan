@@ -12,13 +12,11 @@ or
 
 with Internet access.
 
-_**NOTE**: Working with pre-installed software in the current version of HTAN has not been tested._
-
 Minimum RAM **256 MB**.
 
 Recommended RAM **1 GB** or more.
 
-Minimum amount of free space on HDD: **4 GB**.
+Minimum amount of free space for software installation: **2 GB** (not necessary to install all).
 
 ## License
 
