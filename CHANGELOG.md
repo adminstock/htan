@@ -2,9 +2,10 @@
 
 All notable changes to HTAN will be documented in this file.
 
-## [1.0.102] - 2016-07-03
+## [1.0.103] - 2016-07-03
 ### Fixed
-- SSA installer.
+- SSA installer: adapted to the latest version; checking libssh2;
+- Disabled SVNIndexXSLT.
 
 ## [1.0.101] - 2016-06-05
 
