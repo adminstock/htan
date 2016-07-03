@@ -195,134 +195,146 @@ InstallSSA()
 
   # libssh2 for php7 (debian and also ubuntu)
   if $hasPhp7; then
-    if (($(GetPhpize --version=7 | wc -l) <= 0)); then
-      Message "$(gettext "%s not found.")" "phpize" -s="$DEF_STYLE_ERROR"
-    else
-      # dependencies
-      PackageInstall "php-pear" -confirm=false || return 1
-      Line
+    # checking the existence of libssh2
+    local phpModsPath="$(GetPhpModsAvailablePath --version=7 | head -1)"
+    local phpBasePath="$(dirname $phpModsPath)"
+    local phpModsPathAny=("$phpBasePath/apache2/conf.d" "$phpBasePath/cli/conf.d" "$phpBasePath/fpm/conf.d")
+    local phpCurrentModsPath
+    local has_ssh2=false
 
-      command="sudo pecl channel-update pecl.php.net >> $HTAN_LOG 2>&1"
-      Execute -c="$command" -m="$(gettext "Updating packages …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
-      Line
-
-      PackageInstall "build-essential" -confirm=false
-      Line
-
-      PackageInstall "autoconf" -confirm=false
-      Line
-
-      # PackageInstall "bison" -confirm=false
-      # Line
-
-      # PackageInstall "pkg-config" -confirm=false
-      # Line
-
-      # PackageInstall "libssh2" -confirm=false
-      # Line
-
-      PackageInstall "libgcrypt20-dev" -confirm=false
-      Line
-
-      PackageInstall "libgpg-error-dev" -confirm=false
-      Line
-
-      PackageInstall "libssh2-1-dev" -confirm=false
-      Line
-
-      # PackageInstall "libssh2–1" -confirm=false
-      # Line
-
-      local ssh2PackageTitle="PECL SSH2 for PHP7"
-
-      # prepare to download
-      local buildPath="/usr/local/src/pecl-networking-ssh2-build"
-      if [[ -d "$buildPath" ]]; then
-        command="rm --recursive --force $buildPath >> $HTAN_LOG 2>&1"
-        Execute -c="$command" -m="$(gettext "Removing %s …")" -a="$buildPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
-        Line
+    for phpCurrentModsPath in ${phpModsPathAny[@]}; do
+      if [[ -d "$phpCurrentModsPath" && "$(sudo find $phpCurrentModsPath -name "*ssh2.ini" 2> /dev/null | wc -l)" != "0" ]]; then
+        has_ssh2=true
+        break
       fi
+    done
 
-      command="mkdir -p $buildPath >> $HTAN_LOG 2>&1"
-      Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$buildPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
-      Line
-
-      # download
-      command="wget --no-check-certificate -O $buildPath/php7.zip  https://github.com/Sean-Der/pecl-networking-ssh2/archive/php7.zip >> $HTAN_LOG 2>&1"
-      Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
-      Line
-
-      # unzip
-      if ! PackageInstalled unzip; then
-        PackageInstall unzip -confirm=false
+    if [[ $has_ssh2 != true ]]; then
+      # ssh2 not found, install
+      if (($(GetPhpize --version=7 | wc -l) <= 0)); then
+        Message "$(gettext "%s not found.")" "phpize" -s="$DEF_STYLE_ERROR"
+      else
+        # dependencies
+        PackageInstall "php-pear" -confirm=false || return 1
         Line
-      fi
 
-      command="sudo unzip $buildPath/php7.zip -d $buildPath >> $HTAN_LOG 2>&1"
-      Execute -c="$command" -m="$(gettext "Extraction %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
-      Line
+        command="sudo pecl channel-update pecl.php.net >> $HTAN_LOG 2>&1"
+        Execute -c="$command" -m="$(gettext "Updating packages …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+        Line
 
-      # prepare building
-      command="sudo bash -c \"cd $buildPath/pecl-networking-ssh2-php7 && $(GetPhpize --version=7 | head -1) >> $HTAN_LOG 2>&1 && "
-      command+="./configure --with-php-config=$(GetPhpConfig --version=7 | head -1) >> $HTAN_LOG 2>&1\""
-      Execute -c="$command" -m="$(gettext "Preparing …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
-      Line
+        PackageInstall "build-essential" -confirm=false
+        Line
 
-      # make and install
-      command="sudo bash -c \"cd $buildPath/pecl-networking-ssh2-php7; make >> $HTAN_LOG 2>&1 && make install >> $HTAN_LOG 2>&1\""
-      Execute -c="$command" -m="$(gettext "Installing %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
-      Line
+        PackageInstall "autoconf" -confirm=false
+        Line
 
-      # add the extension into php.ini
-      # (extension=ssh2.so)
+        # PackageInstall "bison" -confirm=false
+        # Line
 
-      SetIFS $'\n'
+        # PackageInstall "pkg-config" -confirm=false
+        # Line
 
-      local phpIniPath
+        # PackageInstall "libssh2" -confirm=false
+        # Line
 
-      for phpIniPath in $(GetPhpIniPath --version=7); do
-        if ! sudo grep -qP '^extension\s*=\s*ssh2.so' "$phpIniPath" >> $HTAN_LOG 2>&1; then
-          command="echo 'extension=ssh2.so' | sudo tee -a $phpIniPath >> $HTAN_LOG 2>&1"
-          Execute -c="$command" -m="$(gettext "Adding %s to %s …")" -a="ssh2.so" -a="$phpIniPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
-          Line
-        fi
-      done
+        PackageInstall "libgcrypt20-dev" -confirm=false
+        Line
 
-      ResetIFS
+        PackageInstall "libgpg-error-dev" -confirm=false
+        Line
 
-      local phpModsPath="$(GetPhpModsAvailablePath --version=7 | head -1)"
+        PackageInstall "libssh2-1-dev" -confirm=false
+        Line
 
-      if [[ -n "$phpModsPath" && -d "$phpModsPath" ]]; then
-        if [[ ! -f "$phpModsPath/ssh2.ini" ]]; then
-          command="sudo printf 'extension=ssh2.so' > '$phpModsPath/ssh2.ini'"
-          Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpModsPath/ssh2.ini" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+        # PackageInstall "libssh2–1" -confirm=false
+        # Line
+
+        local ssh2PackageTitle="PECL SSH2 for PHP7"
+
+        # prepare to download
+        local buildPath="/usr/local/src/pecl-networking-ssh2-build"
+        if [[ -d "$buildPath" ]]; then
+          command="rm --recursive --force $buildPath >> $HTAN_LOG 2>&1"
+          Execute -c="$command" -m="$(gettext "Removing %s …")" -a="$buildPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
           Line
         fi
 
-        local phpBasePath="$(dirname $phpModsPath)"
-        local phpModsPathAny=("$phpBasePath/apache2/conf.d" "$phpBasePath/cli/conf.d" "$phpBasePath/fpm/conf.d")
-        local phpCurrentModsPath
+        command="mkdir -p $buildPath >> $HTAN_LOG 2>&1"
+        Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$buildPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+        Line
 
-        for phpCurrentModsPath in ${phpModsPathAny[@]}; do
-          if [[ -d "$phpCurrentModsPath" && "$(sudo find $phpCurrentModsPath -name "*ssh2.ini" 2> /dev/null | wc -l)" == "0" ]]; then
-            command="sudo ln -s '$phpModsPath/ssh2.ini' '$phpCurrentModsPath/20-ssh2.ini'"
-            Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpCurrentModsPath/20-ssh2.ini" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+        # download
+        command="wget --no-check-certificate -O $buildPath/php7.zip  https://github.com/Sean-Der/pecl-networking-ssh2/archive/php7.zip >> $HTAN_LOG 2>&1"
+        Execute -c="$command" -m="$(gettext "Downloading %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+        Line
+
+        # unzip
+        if ! PackageInstalled unzip; then
+          PackageInstall unzip -confirm=false
+          Line
+        fi
+
+        command="sudo unzip $buildPath/php7.zip -d $buildPath >> $HTAN_LOG 2>&1"
+        Execute -c="$command" -m="$(gettext "Extraction %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+        Line
+
+        # prepare building
+        command="sudo bash -c \"cd $buildPath/pecl-networking-ssh2-php7 && $(GetPhpize --version=7 | head -1) >> $HTAN_LOG 2>&1 && "
+        command+="./configure --with-php-config=$(GetPhpConfig --version=7 | head -1) >> $HTAN_LOG 2>&1\""
+        Execute -c="$command" -m="$(gettext "Preparing …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+        Line
+
+        # make and install
+        command="sudo bash -c \"cd $buildPath/pecl-networking-ssh2-php7; make >> $HTAN_LOG 2>&1 && make install >> $HTAN_LOG 2>&1\""
+        Execute -c="$command" -m="$(gettext "Installing %s …")" -a="$ssh2PackageTitle" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP" || return 1
+        Line
+
+        # add the extension into php.ini
+        # (extension=ssh2.so)
+
+        SetIFS $'\n'
+
+        local phpIniPath
+
+        for phpIniPath in $(GetPhpIniPath --version=7); do
+          if ! sudo grep -qP '^extension\s*=\s*ssh2.so' "$phpIniPath" >> $HTAN_LOG 2>&1; then
+            command="echo 'extension=ssh2.so' | sudo tee -a $phpIniPath >> $HTAN_LOG 2>&1"
+            Execute -c="$command" -m="$(gettext "Adding %s to %s …")" -a="ssh2.so" -a="$phpIniPath" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
             Line
           fi
         done
 
-        unset phpBasePath phpModsPathAny phpCurrentModsPath
-      else
-        Message "$(gettext "%s not found.")" "$phpBasePath/etc/mods_available" -s="$DEF_STYLE_WARNING"
-        Message "$(gettext "Please add 'extension=ssh2.so' to php.ini or to 'conf.d'.")" -s="$DEF_STYLE_WARNING"
-        sleep 5
-        Line
-      fi
+        ResetIFS
 
-      # remove temp files
-      command="sudo rm --recursive --force $buildPath >> $HTAN_LOG 2>&1"
-      Execute -c="$command" -m="$(gettext "Removing temporary files …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+        if [[ -n "$phpModsPath" && -d "$phpModsPath" ]]; then
+          if [[ ! -f "$phpModsPath/ssh2.ini" ]]; then
+            command="sudo printf 'extension=ssh2.so' > '$phpModsPath/ssh2.ini'"
+            Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpModsPath/ssh2.ini" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+            Line
+          fi
+
+          for phpCurrentModsPath in ${phpModsPathAny[@]}; do
+            if [[ -d "$phpCurrentModsPath" && "$(sudo find $phpCurrentModsPath -name "*ssh2.ini" 2> /dev/null | wc -l)" == "0" ]]; then
+              command="sudo ln -s '$phpModsPath/ssh2.ini' '$phpCurrentModsPath/20-ssh2.ini'"
+              Execute -c="$command" -m="$(gettext "Creating %s …")" -a="$phpCurrentModsPath/20-ssh2.ini" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+              Line
+            fi
+          done
+
+        else
+          Message "$(gettext "%s not found.")" "$phpBasePath/etc/mods_available" -s="$DEF_STYLE_WARNING"
+          Message "$(gettext "Please add 'extension=ssh2.so' to php.ini or to 'conf.d'.")" -s="$DEF_STYLE_WARNING"
+          sleep 5
+          Line
+        fi
+
+        # remove temp files
+        command="sudo rm --recursive --force $buildPath >> $HTAN_LOG 2>&1"
+        Execute -c="$command" -m="$(gettext "Removing temporary files …")" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      fi
     fi
+
+    unset phpBasePath phpModsPathAny phpCurrentModsPath has_ssh2
   fi
 
   Line
