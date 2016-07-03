@@ -4,13 +4,13 @@
 # Performs installation and configuration of Subversion.
 #
 # USAGE:
-#   svn [--debug] [--version] [--help] [--nocolor] [--tested]
+#   svn [--debug] [--version] [--help] [--nocolor]
 #
 # PROJECT:
 #   Hosting tools by Aleksey Nemiro (HTAN)
 #
 # REQUIREMENTS:
-#   Debian 7/8, sudo, Nginx, Apache2
+#   Debian 7/8 or Ubuntu Server 16, sudo, Nginx, Apache2
 #
 # AUTHOR:
 #   Aleksey Nemiro
@@ -68,13 +68,6 @@ IncludeTool package config service web
 
 InstallSvn()
 {
-  # tested version
-  local tested
-  if [[ "$HTAN_TESTED" == true ]]; then
-    tested="-version=1.8.10"
-  fi
-  # // --
-
   if ! $HTAN_NOHEADERS; then
     Line =
     Message "$(gettext "# Installing and configuring %s.")" "Subversion" -s="$DEF_STYLE_HEADER"
@@ -95,7 +88,7 @@ InstallSvn()
       return
     fi
   else
-    if ! PackageInstall subversion -confirm="$(NeedUserConfirmationToInstall true)" -title="Apache Subversion" $tested; then
+    if ! PackageInstall subversion -confirm="$(NeedUserConfirmationToInstall true)" -title="Apache Subversion"; then
       return
     fi
   fi
