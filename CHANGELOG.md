@@ -2,6 +2,10 @@
 
 All notable changes to HTAN will be documented in this file.
 
+## [1.0.102] - 2016-07-03
+### Fixed
+- SSA installer.
+
 ## [1.0.101] - 2016-06-05
 
 Version contains significant changes and improvements.

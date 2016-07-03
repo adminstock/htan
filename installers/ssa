@@ -20,13 +20,13 @@
 #   <aleksey.nemiro@gmail.com>
 #
 # VERSION:
-#   1.0.5
+#   1.0.6
 #
 # CREATED:
 #   11.04.2016
 #
 # REVISION:
-#   04.06.2016
+#   03.07.2016
 #
 # COPYRIGHT:
 #   © Aleksey Nemiro, 2016. All rights reserved.
@@ -73,6 +73,7 @@ InstallSSA()
   local htpasswd_path="$base_path/.htpasswd"
   local command=""
   local has_ssa=false
+  local serversBackupPath=""
 
   if ! $HTAN_NOHEADERS; then
     Line =
@@ -344,10 +345,16 @@ InstallSSA()
     Line
   fi
 
-  # backup config
   if $has_ssa; then
+    # backup config
     Execute -c="sudo mv --backup --suffix=.$(date +%s) $www_path/config.php $base_path/config.backup.php >> $HTAN_LOG 2>&1" -m="$(gettext "Backuping %s …")" -a="$www_path/config.php" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
     Line
+    # backup servers config
+    if [[ -d "$www_path/servers" && "$(ls -1 $www_path/servers | wc -l)" != 0 ]]; then 
+      serversBackupPath="$(mktemp --directory $base_path/servers.XXXXX.backup)"
+      Execute -c="sudo mv $www_path/servers $serversBackupPath >> $HTAN_LOG 2>&1" -m="$(gettext "Backuping %s …")" -a="$www_path/servers" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      Line
+    fi
   fi
 
   # remove old folder
@@ -420,7 +427,19 @@ InstallSSA()
     # restore config
     Execute -c="sudo mv $base_path/config.backup.php $www_path/config.php >> $HTAN_LOG 2>&1" -m="$(gettext "Restoring %s …")" -a="$www_path/config.php" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
     Line
+
     # TODO: re-config
+
+    # restore servers
+    if [[ -n "$serversBackupPath" ]]; then
+      if [[ -d "$www_path/servers" ]]; then
+        Execute -c="sudo rm --recursive --force $www_path/servers >> $HTAN_LOG 2>&1" -m="$(gettext "Removing %s …")" -a="$www_path/servers" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+        Line
+      fi
+
+      Execute -c="sudo mv $serversBackupPath $www_path/servers >> $HTAN_LOG 2>&1" -m="$(gettext "Restoring %s …")" -a="$www_path/servers" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+      Line
+    fi
   else
     # host
     EnterHost "$(printf "$(gettext "Enter the domain for %s:")" "SmallServerAdmin")" -default="panel.$HOSTNAME"
@@ -485,6 +504,8 @@ InstallSSA()
     # config SmallServerAdmin
     local ssa_config_source="$HTAN_PATH_DATA/ssa.config.php"
     local ssa_config_target="$www_path/ssa.config.php"
+    local ssa_server_config="$www_path/servers/default.php"
+
     if [[ -f $ssa_config_source ]]; then
       local c="sudo cp $ssa_config_source $ssa_config_target >> $HTAN_LOG 2>&1"
       Execute -c="$c" -m="$(gettext "Creating configuration file for %s …")" -a="SmallServerAdmin" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
@@ -542,12 +563,6 @@ InstallSSA()
         ssh_port=22
       fi
 
-      ReplaceMarker $ssa_config_target "ssh_host" "$(GetServerIP)"
-      ReplaceMarker $ssa_config_target "ssh_port" "$ssh_port"
-      ReplaceMarker $ssa_config_target "ssh_user" "$ssa_ssh_user"
-      ReplaceMarker $ssa_config_target "ssh_password" "$ssa_ssh_password"
-      ReplaceMarker $ssa_config_target "ssh_required_password" "TRUE"
-
       ReplaceMarker $ssa_config_target "dbadmin_list" "$ssa_dbadmin_list"
 
       ReplaceMarker $ssa_config_target "web_htan_enabled" "$ssa_web_htan_enabled"
@@ -559,6 +574,19 @@ InstallSSA()
       fi
 
       ReplaceMarker $ssa_config_target "web_mode" "$ssa_web_mode"
+
+      # create server config
+      if [[ ! -d "$www_path/servers" ]]; then
+        Execute -c="sudo mkdir $www_path/servers >> $HTAN_LOG 2>&1" -m="$(gettext "Creating %s …")" -a="$www_path/servers" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
+        Line
+      fi
+
+      sudo printf "%s\n" "<?php" > $ssa_server_config
+      sudo printf "\$config['ssh_host'] = '%s';\n" "$(GetServerIP)" >> $ssa_server_config
+      sudo printf "\$config['ssh_port'] = '%s';\n" "$ssh_port" >> $ssa_server_config
+      sudo printf "\$config['ssh_user'] = '%s';\n" "$ssa_ssh_user" >> $ssa_server_config
+      sudo printf "\$config['ssh_password'] = '%s';\n" "$ssa_ssh_password" >> $ssa_server_config
+      sudo printf "\$config['ssh_required_password'] = %s;\n" "TRUE" >> $ssa_server_config
     else
       Message "$(gettext "Unable to configure %s. The file %s was not found.")" -a="SmallServerAdmin" -a="$ssa_config_source" -s="$DEF_STYLE_ERROR"
       Line

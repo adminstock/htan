@@ -13,15 +13,8 @@ $config['widgets']['monitoring'] = ['Enabled' => TRUE];
 $config['widgets']['services'] = ['Enabled' => TRUE, 'Format' => '<div>%s</div>', 'NgInit' => 'SearchString = \'{WServices_SearchString}\'; Load()' ];
 $config['widgets']['sites'] = ['Enabled' => TRUE, 'Format' => '<div>%s</div>'];
 
-// SmallServerAdmin
+// uncomment to enable logging
 // $config['ssa_log_path'] = 'ssa.log';
-
-// ssh
-$config['ssh_host'] = '{ssh_host}';
-$config['ssh_port'] = '{ssh_port}';
-$config['ssh_user'] = '{ssh_user}';
-$config['ssh_password'] = '{ssh_password}';
-$config['ssh_required_password'] = {ssh_required_password};
 
 // files
 $config['files_auto_reload'] = [
@@ -57,15 +50,37 @@ $config["web_sitename_invalid_message"] = 'Site name must begin with the letters
 // dbadmin
 $config['dbadmin_list'] = [ {dbadmin_list} ];
 
+// settings (module)
+$config['settings_default_branch'] = 'master';
+$config['settings_update_sources'] = 
+[
+  'master' => 
+  [
+    'Title' => 'Stable',
+    'VersionUrl' => 'https://raw.githubusercontent.com/adminstock/ssa/master/SmallServerAdmin/.version',
+    'ChangeLogUrl' => 'https://raw.githubusercontent.com/adminstock/ssa/master/CHANGELOG.md',
+    'SsaUrl' => 'https://github.com/adminstock/ssa.git/trunk/SmallServerAdmin'
+  ],
+  'dev' =>
+  [
+    'Title' => 'Develop',
+    'Description' => 'The official main branch of the development a new versions.',
+    'VersionUrl' => 'https://raw.githubusercontent.com/adminstock/ssa/dev/SmallServerAdmin/.version',
+    'ChangeLogUrl' => 'https://raw.githubusercontent.com/adminstock/ssa/dev/CHANGELOG.md',
+    'SsaUrl' => 'https://github.com/adminstock/ssa.git/branches/dev/SmallServerAdmin'
+  ]
+];
 
 // client-side config
 $config['client'] = [
-  'WebServer' => $config['web_mode'],
+  'WebServer' => isset($config['web_mode']) ? $config['web_mode'] : NULL,
   'ApacheHost' => '{ApacheHost}',
   'ApachePort' => {ApachePort},
   'LogFolderName' => '.logs',
   'PhpFastCgiPort' => {PhpFastCgiPort},
   'AspNetFastCgiPort' => {AspNetFastCgiPort},
-  'ServerAddress' => $config['ssh_host'],
-  'ServerName' => $config['server_name']
+  'ServerAddress' => isset($config['ssh_host']) ? $config['ssh_host'] : NULL,
+  'ServerName' => isset($config['server_name']) ? $config['server_name'] : NULL,
+  'HtanEnabled' => isset($config['web_htan_enabled']) ? $config['web_htan_enabled'] : NULL,
+  'DefaultBranch' => isset($config['settings_default_branch']) ? $config['settings_default_branch'] : NULL
 ];
