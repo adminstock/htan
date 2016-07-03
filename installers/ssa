@@ -87,6 +87,7 @@ InstallSSA()
   if [[ -f "$www_path/config.php" ]]; then
     has_ssa=true
     Message "$(gettext "Probably, SmallServerAdmin already installed.")"
+    Line
     if ! Confirm "$(gettext "Would you like to configure?")" -yes; then
       Line
       Message "$(gettext "Operation canceled by the user.")"
@@ -363,7 +364,7 @@ InstallSSA()
     Line
     # backup servers config
     if [[ -d "$www_path/servers" && "$(ls -1 $www_path/servers | wc -l)" != 0 ]]; then 
-      serversBackupPath="$(mktemp --directory $base_path/servers.XXXXX.backup)"
+      serversBackupPath="$(mktemp --directory --dry-run $base_path/servers.XXXXX.backup)"
       Execute -c="sudo mv $www_path/servers $serversBackupPath >> $HTAN_LOG 2>&1" -m="$(gettext "Backuping %s …")" -a="$www_path/servers" -sp="$DEF_STYLE_ACTION_PROC" -sc="$DEF_STYLE_ACTION_COMP"
       Line
     fi
